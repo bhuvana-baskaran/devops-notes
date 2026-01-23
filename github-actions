@@ -1,0 +1,110 @@
+skeleton of github actions
+name:
+on: [push]
+jobs:
+  build:  -- build job 
+	runs-on: ubuntu-latest - default free agent provided by github action
+    steps:
+	  - name: step name
+	    uses: 'uses' is to call github action plugins. for ex. actions/checkout@v3
+	  - name: step2
+	    run: run is to run the shell commands directly
+  test: -- test job
+	runs-on: ubuntu-latest
+	needs: build -- run jobs sequentially
+	steps: 
+	- name: step 1
+	  run: |
+		echo "running multi line shell commands"
+		
+
+steps will run sequentially. jobs will run parallely
+whatever file you generate during the workflow execute will be saved in github runner machine. it will be lost once the workflow execution finishes. we have to upload to artifact to package n upload to github's storage. 
+
+trigger options: push, pull_request, schedule, release, issues
+workflow_dispatch - manual trigger
+repository_dispatch - api call trigger
+workflow_call - allow one workflow to call another workflow 
+workflow_run - trigger deploy workflow when build workflow completed
+
+in workflow_dispatch we can add inputs while trigger and can enable/disable jobs during execution
+on: 
+   workflow_dispatch:
+     input:
+	   environment: -- param name
+	     description: "some description"
+		 required: true
+		 default: "staging" -- default value
+jobs:
+ deploy:
+	runs-on: ubuntu-latest
+	if: ${{ github.event.inputs.environment == "staging" }}
+    steps:
+    - name: step 1
+      if: ${{ github.event.inputs.environment == "staging" }}
+	  run: ...
+	  
+this input option at execution only available for manual trigger. further ways to control workflow is to add
+1)env variable.. declared with 
+env:
+  DEPLOY: "prod"
+access using $DEPLOY
+2)secrets.. stored at repo or org level and accessed using
+env:
+  API_KEY: ${{ secrets.MY_API_KEY }}
+3)github context / event payload / runtime variables available on the workflow.
+accessed using
+if: ${{ github.ref == 'refs/heads/main'  }} - triggers job / step only if the branch is main
+github.event_name - on which action its triggered push / push req ...
+github.sha - commit sha value
+github.actor - who triggered
+github.run_number - build number
+
+GITHUB_TOKEN - built in secret in github. it can be used when workflow wants to access github like push code, create branch, releases, etc..
+By default, GITHUB_TOKEN has read/write access to the repo
+You can restrict or expand its permissions in your workflow:
+permissions:
+  contents: write   # allow pushing commits
+  issues: write     # allow commenting on issues
+  pull-requests: read
+  id-token: write   # related to OIDC. tells Github actions that this workflow is allowed to request an OIDC token from GitHub’s identity provider.
+  actions: read # allow getting workflows run details, write allows trigger / cancel other workflows
+  
+environments are job level. we can specify variables, secrets and add reviewers and access them inside the jobs
+
+github runners comes with preinstalled softwares. self hosted runners should have all the packages n tools installed for the jobs to work. so we can use containers as runtime for the self hosted runners. 
+	
+commonly used github actions:
+actions/checkout@v3
+actions/setup-java , setup-python, setup-node
+actions/upload-artifact , download-artifact - retrieves artifacts in later job
+docker/build-push-action - builds and pushes Docker images
+
+upload-artifact is for sharing files b/w jobs in same workflow. output artifact is only to share values b/w jobs in same workflow
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-path: ${{ steps.save.outputs.path }}
+    steps:
+      - id: save
+        run: echo "path=output/message.txt" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying from ${{ needs.build.outputs.artifact-path }}"
+
+concurrency: → prevent duplicate runs (e.g., cancel old runs if new commit arrives).
+concurrency: ci-${{ github.ref }}
+Cache speeds up workflows by reusing dependencies or build outputs between runs. - actions/cache@v3
+
+{
+    "clientSecret":  "xxxxxxxxxxx",
+    "subscriptionId":  "xxxxxxxxx",
+    "tenantId":  "xxxxxxxxxx",
+    "clientId":  "xxxxxxxxxx"
+}
+
+need to focus on input parameters and variables in github actions
