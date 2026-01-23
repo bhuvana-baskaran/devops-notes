@@ -1,0 +1,34 @@
+ingress
+=======
+initially services were exposed to outside world using LB service type. which assigns public IP for every service.
+If I want to have domain name for my service and path or host based routing, I have create ingress resources
+steps to install nginx ingress:
+install the nginx ingress controller
+  helm repo add ingress-nginx repo-url - add the nginx ingress helm chart
+  helm repo update
+  helm install app-ingress ingress-nginx/ingress-nginx 
+    --namespace ingress
+	--create-namespace
+	--set controller.replicaCount=2
+  kubectl get svc -n ingress - LB with public IP is created for the ingress controller
+Now I can change my app services to clusterIP type from LB and apply (delete n create again)
+create and apply the ingress resource file in the app namespace. It will get the public IP as the ingress LB IP. 
+For using https, create secret with TLS certificates and configure ingress resource with tls host & secret name
+for self signed certificate, 
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 `
+	-out aks-ingress-tls.crt `
+	-keyout aks-ingress-tls.key `
+	-subj "/CN=example.com/O=example.com" `
+	-addext "subjectAltName = DNS:example.com"
+it will create aks-ingress-tls.crt & aks-ingress-tls.key files
+kubectl create secret tls app-secret --cert=aks-ingress-tls.crt --key=aks-ingress-tls.key --namespace appns
+In ingress resource, 
+	ingressClassName: nginx
+	tls:
+	- hosts:
+	  - example.com
+	  secretName: app-secret
+	rules:
+	...
+we can also store the cert in keyvault and pull it into secret with secret store csi driver and use the same for ingress TLS cert. for this use case also we need to create dummy deployment that mounts the volume using secretproviderclass for the secret to be fetched and the K8s secret to be created
+
