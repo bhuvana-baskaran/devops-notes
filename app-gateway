@@ -1,0 +1,51 @@
+Azure Application Gateway
+layer 7
+routes n/w traffic to
+vm
+vmss
+app service
+aks
+container apps
+functions, etc.
+it can route traffic based on url
+supports WAF(SQL injection, cross-site scripting, DDOS attacks, HTTP protocol violations, crawlers & scanners, geo-filter)
+
+features
+ssl/tls termination
+supports auto scaling based on traffic load
+supports multi az
+url based routing
+http to https redirect
+session affinity
+custom error pages
+rewrite http headers and url 
+health probes
+
+for frontend ip configuration, it supports both
+public ip (only one)
+private ip 
+
+azure app g/w should have dedicated subnet
+
+app g/w components
+vnet & dedicated subnet
+frontend ip (public, private or both)
+backends - backendpool
+routing rule (listeners & frontend + backend pool with path based routed if needed)
+
+app g/w has two versions v1 & v2
+In v1, vip can change if app g/w restarted. in v2 vip and public ip are static
+it has its own subnet, multiple app g/w can share the same subnet
+could be stopped and started using command line to reduce cost
+supports key vault to store TLS certificates
+
+In LB inbound is blocked without nsg because it simply forwards the traffic to backend
+where as in app g/w It terminates HTTP/HTTPS traffic itself and then initiates new connections to backend pool members
+Standard LB backend pool VMs lose default outbound internet access.
+To give them outbound connectivity, you must configure:
+Outbound rules (SNAT via LB frontend IP), or
+NAT Gateway.
+AppGW itself is a managed service and has built-in outbound connectivity to reach backend pool members
+
+
+if i want my app to be accessed internally for that i want to assign private ip to app g/w frontend. that frontend ip should be from app g/w dedicated subnet. 
