@@ -1,0 +1,56 @@
+How Azure AD works?
+Oauth 2.0 - for authorization
+OpenIDConnect - for authentication
+
+Azure CLI & Azure Portal is backed by a pre-registered application in Microsoft Entra ID
+
+https://learn.microsoft.com/en-us/entra/identity-platform/media/v2-oauth2-auth-code-flow/convergence-scenarios-native.svg
+
+
+Step-by-Step Explanation of the Authorization Code Flow
+User Initiates Login (Client Starts the Flow):
+The user triggers the authentication in the client app. For Azure Portal, this is when you navigate to portal.azure.com (it checks for an existing session first). For az login, you run the command in the terminal.
+
+Client Redirects to Entra ID Authorization Endpoint:
+The client opens or redirects the browser to Entra ID's authorization URL to request user consent and authentication.
+in GET query parameters to https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize):
+client_id: The app's ID (e.g., 04b07795-8ddb-461a-bbee-02f9e1bf7b46 for Azure CLI).
+response_type: code (requests an authorization code).
+redirect_uri: Where to send the code back (e.g., http://localhost:8400 for Azure CLI; a portal-specific URI for Azure Portal).
+scope: Permissions requested (e.g., openid profile offline_access https://management.azure.com/.default—openid for OIDC, offline_access for refresh token, and Azure-specific scopes).
+
+User Authenticates with Entra ID:
+Entra ID presents the sign-in page. If federated (e.g., on-premises AD), it may redirect to your IdP.
+Enter username/email, password, and complete MFA
+Credentials are POSTed to Entra ID's login endpoint
+
+Entra ID Issues Authorization Code (Redirect Back to Client):
+After successful auth and consent (if first time, user consents to scopes), Entra ID redirects the browser back to the client's redirect_uri.
+Values passed (in GET query parameters on redirect):
+code: Short-lived authorization code (e.g., 0.AVkA...—valid ~10 minutes).
+state: The same random string sent earlier (client verifies it matches to prevent attacks).
+Optional: session_state for SSO tracking.
+
+Client Exchanges Code for Tokens:
+The client (now with the code) makes a direct request to Entra ID's token endpoint to trade the code for tokens. No browser involved here.
+in POST body to https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token):
+client_id: Same as before.
+grant_type: authorization_code.
+code: The received authorization code.
+redirect_uri: Must match the one sent in step 2.
+
+Entra ID Returns Tokens:
+Entra ID validates the request (code, verifier, etc.) and issues tokens if everything checks out.
+access_token: JWT for API access (e.g., eyJ0eXAiOi...—expires in ~1 hour).
+id_token: JWT with user claims (e.g., name, email, roles).
+refresh_token: Long-lived token for renewing access (e.g., valid 90 days, rotatable).
+expires_in: Token lifetime in seconds (e.g., 3600).
+token_type: Bearer.
+scope: Granted scopes.
+
+
+Client Accesses Protected Resource:
+With the access token, the client can now call protected APIs (e.g., Azure Resource Manager for listing VMs).
+in API requests, e.g., to https://management.azure.com/subscriptions):
+Header: Authorization: Bearer {access_token}.
+The resource server validates the token (signature, audience, scopes) against Entra ID's metadata.
