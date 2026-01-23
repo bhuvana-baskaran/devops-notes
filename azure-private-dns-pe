@@ -1,0 +1,49 @@
+Private DNS zone
+it could be linked to one or more vnets
+
+Private Endpoints
+Azure services like keyvault, sql, storage account, app service and acr are by default exposed publicly through public endpoint. 
+
+PE is a network interface that uses a private ip address from your vnet. this NIC connects you privately and securely to a service that's powered by azure private link. the service then only be available with vnet and public access will be disabled(not automatically). 
+
+PE uses a private ip. but we can create private domain name using private dns zone
+
+when we create PE for paas service, two resources will be created. first is PE itself and NIC assigned with private ip from vnet is created and attached to PE
+
+you specify vnet & subnet while creating PE. it creates NIC and attaches to the subnet. 
+
+VNET service endpoint
+provides pvt n/w access to azure resources
+the compute resources connect to the public ip of azure services
+this endpoint connects over an optimized route using azure backbone network
+the compute resources on the pvt vnet use this pvt ip as source address when connecting to azure services
+works only for outbound traffic. no inbound
+
+how does it work?
+subnet - enable service endpoint for specific azure service like storage account
+go to storage account - networking - public network access - enable select vnet access - select your subnet
+
+compared to private endpoint, it uses public ip of service only though the traffic goes over azure backbone n/w.
+PE traffic flows entirely through vnet using private ip. no public ip involved. 
+
+PE is preferred over service endpoint. 
+
+Private Link Service (PLS)
+PE is powered by PLS
+To enable private access to azure paas services through PE, that paas service should support PLS
+we can access paas services and customer services over PE in vnet
+we can also create our own PLS in vnet and deliver it to customers
+your service will run behind standard LB
+with private link access, customers can access to your service privately from their own vnets. 
+service provider - vmss -> internal LB -> PLS
+customer side - VM -> PE for PLS. this PE is connected to PLS service 
+PLS service can be accessed from approved PE in any public region
+PE can be reached from same or peered vnet or onprem using vpn & express route. 
+it must be deployed in the same region as the vnet & standard LB
+can be accessed from multiple PE belongs to different vnets, subscriptions or tenants
+the customer n service provider could be in different regions
+
+service endpoints/PE are like providing internal access to azure resources
+whereas PLS is like providing internal access for our own application running behind standard LB
+PLS is like creating our app as azure services. we attach PE to that service to enable private access 
+whichever vnet & subnet has this PE attached, can access our private app.  
