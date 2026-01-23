@@ -1,0 +1,359 @@
+when we create aks cluster below resources are getting created
+aks cluster - separate rg
+nodepools and below are in separate rg
+public ip
+loadbalancer - private cluster doesn't have frontend ip as public ip. but public cluster has. need to check
+nsg
+vmss
+managed identity
+
+azure cni network mode will create nodes and pods from vnet n subnet of the cluster
+
+AKS cluster
+public AKS cluster means control plane exposed with public IP & public FQDN. users and worker node will connect through public ip & fqdn
+authorized ip ranges for restriction of public IP
+az aks show --query fqdn
+nslookup of the fqdn will resolve to public ip
+az aks show --query privateFqdn - no result
+default k8s service in aks will have public ip as endpoint
+
+Private aks cluster means control plane exposed with public FQDN & private ip. control plane is not exposed to the internet.
+worker nodes will use private endpoint to connect to the control plane. private endpoint will use private ip. it may change on cluster restart. for this purpose private DNS zone is used. 
+kubectl & devops pipeline will use jumphost in the cluster vnet to connect. 
+az aks show --query fqdn
+nslookup of the fqdn will resolve with public fqdn url & private ip - we can disable this public fqdn 
+az aks show --query privateFqdn - will resolve to private link private fqdn url but no ip resolved it can be resolved only within the network where you have private dns zone defined(aks vnet).
+now when you check the RG of nodepool you will see below additional resources
+private dns zone with private linkfqdn - to resolve private ip 
+private endpoint for kube-apiserver - routes the traffic to api server
+network interface for private ip for kube-apiserver from aks vnet
+inside private dns zone A record pointing to private IP from vnet
+
+
+Public AKS cluster with VNET Integration means control plane exposed with public FQDN & public IP. control plane is exposed to internet.
+kubectl n devops pipeline will use public or private ip 
+worker nodes access control plane through internal LB (private ip) - new subnet is created with LB in vnet
+az aks show --query fqdn
+nslookup of the fqdn will resolve with public fqdn url & public ip - we can disable this public fqdn 
+az aks show --query privateFqdn - no result
+default k8s service in aks will have private ip as endpoint to be accessed by the worker nodes
+if you check the nodepool RG it will additionally have internal LB with private ip for kube-apiserver(same ip as we have seen in svc endpoint)
+
+
+Private AKS cluster with VNET Integration means control plane is exposed only on private IP on internal LB. 
+control plane is not exposed to internet. it has public fqdn with private ip that could be disabled
+kubectl n devops pipeline will use private ip of internal LB (through jumpbox)
+worker nodes access control plane through internal LB (private ip) - new subnet is created with LB in vnet
+here there is no private endpoint its replaced by internal LB
+az aks show --query fqdn - 
+nslookup of the fqdn will resolve with public fqdn url & private ip - we can disable this public fqdn 
+az aks show --query privateFqdn - private fqdn not showing private ip because its resolved from vnet
+if you check the nodepool RG it will additionally have internal LB with private ip for kube-apiserver & private dns zone 
+private dns zone will resolve to the private ip of internal LB - it will have A record for internal LB IP
+
+in private AKS cluster private dns zone is attached to vnet. if the jumphost is in some other vnet we have to attach the same private dns zone to other vnet to connect to the cluster from jumphost
+
+==========xxxxxxxxxxxxxx=================
+private aks cluster comes with azure LB with public IP for outbound. only when the outbound is none, it won't create the LB
+public aks cluster also comes with azure LB with public IP for outbound
+when we create LB K8s service type, it will create public IP in the same LB for ingress traffic
+
+default outbound type of aks cluster is LB. egress traffic from cluster is go through this public LB
+
+covered private dns zone n private link
+
+Networking plugins
+kubenet
+Azure CNI
+Cilium
+BYO - Calico CNI
+
+kubenet
+default network mode
+nodes get ip from vnet subnet
+pods get ip from internal network.. pod CIDR is there in the cluster configuration (/16) (each nodes get podCIDR configured which is /24)
+service CIDR is different
+NAT is used so that pod can reach resources on vnet
+if you check the RG of nodepool, it has route table
+pods on different node can't communicate with each other. user defined routing(UDR) on route table is used for connectivity b/w pods across nodes
+the source IP of the traffic is NAT'd to the nodes primary ip address
+pods from different node communicate through node route table
+name			adddress prefix				next hop				next hop ip address
+node name1		podCIDR per node(/24)		virtual appliance		node ip
+some system pods are assigned the same ip address of the node because the pod can request it in its deployment or config file
+kubenet doesn't support
+AKS virtual nodes
+windows nodepools
+azure network policies
+however calico network policy is supported with kubenet
+azure support max or 400 routes in UDR. means AKS can't have more than 400 nodes
+A additional hop adds minor latency to pod communication
+
+
+Azure CNI
+each pod gets an ip address from subnet and can be accessed directly
+each nodes has config parameter for max no. of pods it can support and then reserved up front for that node
+might lead ip address exhausion 
+no route table here
+nodes & pod get the ip from subnet. nodes have max pod per node to allocate the ip
+pod CIDR in cluster config is empty here
+here also some system pods has the same ip as the node ip
+services CIDR is different
+ 
+IP utilization in Kubenet vs Azure CNI
+if subnet has /24 range - 256 IPS - 5 ips are reserved, then
+subnet cidr /24			kubenet				azure CNI
+nodes					251 node			8 nodes
+pods 		 (251*110)=27610 pods			(8*30)=240 pods
+110 is the default pods per node in kubenet mode
+IP exhausion will happen in Azure CNI mode. it could be resolved through Azure CNI Overlay mode
+
+
+Azure CNI Overlay
+nodes have ip from aks subnet
+pods will have ip from overlay network(private CIDR that is provided at the time of cluster creation)
+each node has /24 podCIDR range to assign to its pods
+no need for route table.. so performance is improved
+endpoints outside the cluster can't connect to a pod directly
+max pod per node is 250
+here also some system pods has the same ip as the node ip
+pod CIDR is empty in portal but you can find the value in Json view
+services CIDR is different
+pods get ip from internal network.. (each nodes get podCIDR configured which is /24)
+overlay doesn't support
+app g/w ingress controller 
+windows 2019 node pools
+
+
+BYO CNI
+Cilium (Open source & Enterprise)
+Calico 
+Canal
+Flannel
+Weave
+
+In private AKS(old), API server address in ( - resolves to private ip only )
+AKS overview is showing private FQDN
+AKS settings -> properties is showing public FQDN
+kube config file will have private FQDN
+It will show private dns zone n private endpoint in RG of nodepool
+
+In private AKS(new), API server address in ( - resolves to private ip only ) 
+AKS overview is showing public FQDN 
+AKS settings -> properties is showing public FQDN
+kube config file will have private FQDN
+It won't show the system managed private dns zone n private endpoint in RG of nodepool. private dns zone types (none, system, user managed)
+
+In private AKS(new) with public FQDN enabled & privateDNSzone disabled, API server address in ( - resolves to private ip only ) 
+AKS overview is showing public FQDN 
+AKS settings -> properties is showing public FQDN
+kube config file will have private/public FQDN
+It will create the private endpoint in RG of nodepool and its registered with azure public dns zone which we can't see from portal. 
+
+In public AKS, API server address in 
+AKS overview is showing public FQDN
+AKS settings -> properties is showing public FQDN
+kube config file will have public FQDN
+no private DNS zone
+
+when the cluster is stopped, azure will delete the private endpoint(dns zone will stay there) to reduce cost and recreate it when starting again
+
+if first aks cluster is created, it will create private dns zone and link to the vnet. we can reuse the same private dns zone in the second aks cluster creation by setting --private-dns-zone='zone-id'. both clusters will add the private endpoint entry in this dns zone. aks managed identity should have access to update the records in private dns zone
+
+when the public FQDN is enabled on the cluster we actually no need the private dns zone. because private ip is already linked with public FQDN. but by default private aks cluster will create private dns zone regardless of public FQDN setting
+
+
+aks control plane has kube api server. kubect / devops pipeline / nodepools wants to connect to control plane. in public aks cluster, they have public FQDN of api server. in private aks cluster, they have private FQDN created by private dns zone n private endpoint. and then the vnet of nodepool n vnet of jumphost or devops pipeline agent should be integrated with private dns zone
+
+
+------ I need to check how managed identity of aks cluster is used
+
+identity types
+managed identity
+workload identity
+pod identity
+spn
+
+CoreDNS is used to resolve the domain names within the cluster
+CoreDNS is created in kube-system namespace with pods, service n configmaps.
+with coredns-custom configmap,
+ we can change the service domain for ex. from nginx.default.svc.cluster.local to nginx.default.aks.com
+ we can log the dns queries using plugins
+
+
+AKS Egress / Outbound types: LB, NAT Gateway, UDR
+with this we will control the egress traffic within the nodes only not the control plane as we don't have access to the control plane
+aks node has os, pods and kubelet which may need internet access for os updates, external api access from containers & kubelet needs access to download ACR images and other activities
+
+LB mode:
+egress traffic is going through LB IP. Same LB is used for LB service for ingress traffic
+It has SNAT port exhaution problem
+
+NAT: method used by routers and firewalls to remap one IP address space into another by modifying network address information in IP packet headers
+
+Source NAT(SNAT): Changes the source IP address of outgoing packets
+Use case:When devices in a private network access the internet, their source IPs (private) are replaced with a public IP.
+
+Destination NAT(DNAT): Changes the destination IP address of incoming packets
+Use case: Port forwarding: External users reach a public IP, but the request is forwarded to a specific internal server
+
+How SNAT works in practice
+Each unique (source IP, source port, destination IP, destination port, protocol) tuple is a NAT connection.
+When many pods/services share the same public IP for outbound connections, each connection must use a different source port.
+
+SNAT Exhaustion Problem:
+There are only ~64,000 possible source ports per IP and protocol
+In high-scale environments (like AKS clusters with many pods), you can run out of available port numbers for SNAT.
+When this happens, new outbound connections cannot be established until old ones close—leading to connectivity issues (timeouts, dropped connections)
+How it works in AKS with Load Balancer outbound:
+Suppose you have 1 public IP on your Load Balancer.
+That IP provides ~64,000 SNAT ports for the whole cluster.
+Azure Load Balancer divides these ports among the AKS nodes (VMs). For example, if you have 4 nodes, each node might get ~16,000 SNAT ports
+Each node gets a pre-allocated pool of SNAT ports from each public IP
+As you increase the number of nodes, each node gets fewer SNAT ports
+As you scale up or down the number of nodes in your AKS cluster, Azure dynamically reallocates the available SNAT ports per node
+Result:
+Outbound connections fail intermittently.
+Errors like "connection reset", "cannot assign requested address", etc.
+Solution:
+1)you can add more public IPs to AKS LB as it supports 64000 ports per IP. increasing IP means increasing ports
+2) AKS NAT Gateway mode:
+NAT Gateway doesn't pre allocate ports per node. it allocates the port based on demand. one node has more ports that has high outgoing connections
+this doesn't solve the problem but reduces it by avoiding pre allocation. we can add more IPs to NAT Gateway also to have more SNAT ports
+It acts like LB for outgoing traffic
+For traffic from within VNET or peered VNET it doesn't use NAT gateway it uses internal network
+again, 
+NAT gateway is zonal supports one AZ. To support 3AZ, you should deploy it in each 3AZ
+2 types of NAT Gateway
+ManagedNG - azure will manage
+UserAssignedNG -  we create NAT gateway, attach it to a subnet, will use that subnet while creating AKS
+
+LB vs NAT Gateway
+LB is not deployed with VNET where as NAT gateway is deployed in the same subnet of AKS nodes. but it will not get private ip from subnet. its a managed service.
+
+--------I need to check the traffic flow - every time pod request goes to node and then to other pod and external service
+
+AKS Egress UDR mode:
+its for special use case, securing the egress traffic. its used when we want to filter and control egress traffic, through firewall/NVA.
+its used by Azure Landing Zone also
+first route table needs to be created that routes the traffic to firewall within the hub network
+in nodepool RG, nothing other than nodepools VMSS, managed identity n NSG. in aks RG, it has hub firewall, route table & public IP, vnet
+in this mode, all the egress traffic that leaves will go through firewall. firewall by default will block the access to outside internet.
+Azure provides FQDN tag called AzureKubernetesServices in Firewall application rule to allow the basic external services like ACR, OS updates, control plane connection to work. 
+when we create nginx pod with dockerhub image, it went to errimagepull state, then firewall app rule updated with target fqdn as hub.docker.com and other hosts of docker hub. then the pod is running fine. 
+egress traffic is flowing through firewall public IP
+Resources to be created
+RG, VNET, Subnet, Public IP, enable azure firewall extension, Firewall, Configure Firewall to use the public IP.  Firewall will have public & prviate ip, Route Table in AKS subnet, routes to forward all the internet route to private ip of firewall. another routes to forwall all the route received on firewall public ip to internet, firewall rules to allow the required services. attach the route table to AKS subnet. create AKS cluster with outbound type as UDR. 
+
+------ I need to check how LB & App Gateway works? are both managed service or are they having private ip in subnet
+
+How to migrate AKS with default LB outbound type to user assigned NAT Gateway Outbound type (migration to managed NAT is not supported)
+Create AKS cluster with default LB outbount type
+Create public IP & create NAT gateway and associate the public IP. 
+Attach the NAT gateway to the subnet - there will be drop in existing connections
+Update AKS cluster to use outbound type as userassigned NAT Gateway. It will delete the LB that was used for outbound
+
+==========================
+StateFulSets
+==========================
+used for stateful application like databases
+yaml file same as deployment, under spec it has replicas, selectors and pod template along with service name and volumeclaimtemplates
+service name used here is a headless service. it provides stable DNS identities for each pod in statefulset
+each pod in sts gets stable DNS name like pod-name-0.servicename.namespace.svc.cluster.local. even if the pod restarts it gets the same pod name and dns name
+instead of volumes section and mentioning pvc name inside it in deployment, here in statefulsets its using volumeclaimtemplates directly with specifications of pvc like storageclass, size & accessmode. 
+
+headless service doesn't provide load balancing. it provides direct access to pods by providing dns name.
+
+In deployments all replicas will use the same pvc. In statefulset each replica is attached with separate pvc & pv
+The main difference from Deployments is stable identity + automatic PVC creation per pod
+
+when I scale sts replcia from 1 to 3, it will create 2 additional pods, along with 2 other pv and pvc for those pods
+
+persistentVolumeClaimRetentionPolicy:
+  whenDeleted: Delete - Policy applied when the StatefulSet itself is deleted to retain/delete the PVC
+  whenScaled: Retain - Policy applied when the StatefulSet is scaled down (replicas reduced) to retain/delete the PVC. in retain, if you scale back up, the same PVCs can be reused.
+  
+Accessmodes in pvc - azure disk only supports readwriteonce mode and its attached to one of the nodes in cluster. where as other storages that supports readwritemany or readonlymany doesn't attached to nodes
+for ex. Azure Disk → RWO only, the disk can be mounted as read/write by only one node at a time. multiple pods on the same node can access the same Azure Disk PVC simultaneously
+Azure Files / NFS / CephFS → RWX/ROX supported, These are network file systems — they don’t “attach” like a disk; instead, they’re mounted over the network, so multiple nodes can access them at once
+
+Stateful is like running a db vm. image is the vm os. attached pvc is the disk for db data. other deployments or pods can access from the dns name of the replicas. 
+
+if I scaled down my statefulset from 3 to 1 and had retained the pvc. after sometime i scaled up again. in this case each pod will bound to its existing pvc. If the pod is scheduled on a different node, K8s will detach the Azure Disk from the old node and reattach it to the new node. this is true if the azure disk and the new node are in same AZ.
+If azure disk is created with LRS (3 replicas in same zone), it couldn't be detached from old node and attached to new node. so the pod will fail to run
+If azure disk is created with ZRS (3 replicas across different zones), then only k8s can reattach it to another node where pod runs
+
+Azure Disk with either LRS or ZRS mode could still be mounted with only one node. only one pod can write at a time. RWO. volumemode: filesystem by default
+Azure Shared Disk can be attached to multiple nodes, supports RWX. still only one node can write at a time. supports LRS & ZRS. volumemode: Block - specifying this in pvc will create shared disk. 
+ 
+Azure BLOB container as storage in AKS
+there is no default csi driver for blob in aks. we can enable it on cluster creation or later through --enable-blob-driver
+it will run the csi drivers for blob in kube-system namespace and creates storage classes azureblob-fuse-premium & azureblob-nfs-premium
+blob types: block blobs, append blobs and page blobs - only block blobs supports RWX and used by blob CSI drivers
+blobfuse & nfs are mounting technics that lets k8s pods treat blob storage like a shared filesystem
+RWX means blob will be mounted to multiple nodes in aks cluster. NFS is recommeded compared to blobfuse
+
+Storage account is created in AKS nodepool RG. we can use exiting storage account and blob also. 
+k8s secret is created with azure storage account name n key in the background. the csi driver references this secret when mounting the volume. this is used only incase of blobfuse. NFS doesn't need it.(it will consider storage account private networking - not sure need to check)
+
+storage account public access is disabled and access only to the aks subnet is enabled
+
+azure managed identity could also be used instead of secret ---------- need to check
+
+if you have an existing storage account, you can create storageclass with rg, sa and container name. 
+
+Attach azure blobfuse to aks using managed identity
+for azure blobfuse we can use sa keys, sas token, service principle or managed identity to connect to sa
+in pv you will mention storage account for static storage account, container name, auth type as msi, MI client/object/resource ID
+create aks cluster, storage account and container
+create managed identity, get the client id of managed identity and assign 'storage blob data owner' role to storage account. assign this identity to systemnode pool VMSS where blob csi driver pods are running
+apply the deployment, svc, pv & pvc files 
+
+-- nodepools have default managed identity created during the cluster creation. but thats attached to all the nodepools in the cluster
+
+snapshot for pv
+we can create snapshot for pv from k8s itself using volumesnapshotclass & volumesnapshot
+in volumesnapshotclass we need to specify the csi driver, deletionpolicy & other parameters, in volumesnapshot we need to specify the volumesnapshotclass and pvc name. it will create the snapshot in azure portal
+kubectl get volumesnapshot
+if the csi driver supports snapshots, we can create it for all volume types. 
+to restore the volumesnapshot, we can create pvc with datasource section mentioned with kind as volumesnapshotname & the actual name. kubectl get pvc. create a deployment with this pvc.
+
+cloning the pv
+suppose i have deployment with pvc running. if I want to create new setup that should have the same data as the existing setup, then while creating pvc i can mention datasource section with kind as pvc and actual existing pvc name. it will create pvc and has the same data as the existing one. 
+
+Question: How to access keyvault secret from pod?
+Create AKS cluster with enabled keyvault secrets provider, workload identity and oidc issuer
+OIDC issuer URL is generated and secret store csi driver & secret store provider ds pods are running. user assigned MI is created. 
+create new user assigned MI if required 
+create keyvault and secret. assign access to secret to that user assigned MI either through RBAC or azure policy. 
+create namespace & service account in that namespace. that service account will have label workload identity use as true and in annotations it will have client id of user assigned managed identity.
+now this service account needs to be federated through Azure AD to access the managed identity.
+create federated credentials through az identity federated-credentials command by passing, service account URL, OIDC URL & user assigned identity name. this will be reflected under user assigned managed identity -> settings -> federated credentials
+create secret provider class for accessing azure keyvault secret
+  provider: azure
+  usePodIdentity: false - because we are not using pod identity for authentication
+  useVMManagedIdentity: false - because we are not using the managed identity of VMSS that is attached to the nodes
+  clientID: userassignedMI_client_id - because we r using workload identity by assigning federated creds to user assigned MI
+  keyvaultName: 
+  objects: secrets i want to retrieve from the keyvault
+service account n secret providerclass has to be applied to the same namespace of application
+create a deployment with the same serviceaccount, volumes & volumemounts 
+ volume: 
+  - name: secret-store-inline
+    csi:
+	  driver: secret-store.csi - crd name of csi driver
+	  readOnly: true
+	  volumeAttribute: 
+		secretProviderClass: name of the secretProviderClass
+secret from the keyvault is mounted to the pod at volumemount directory. it has created a file with the secret name and content as secret value. 
+
+Consumption Method,				Auto-Rotation Updates Content?,	Pod Restart Required?,	App Needs to Watch/Reload?,Notes
+Direct CSI volume mount (files),		Yes (files refreshed),		No,					Yes (for file changes),Recommended for dynamic reload
+Synced K8s Secret → mounted as volume,	Yes,						No,					Optional,Best of both worlds
+Synced K8s Secret → env variables,		Yes (Secret updates),		Yes,				N/A,Use Reloader for auto-restart
+
+=================
+scheduling pod on nodepools
+if you have a requirement to schedule all the pods on certain namespace to go to specific nodepool, then
+create namespace and add annotation to the namespace with node-selector as the label of the nodepool
+
