@@ -1,0 +1,43 @@
+Azure LB
+components
+health check
+frontend ip config
+backend pool
+LB rules (frontend ip + backendpool +  health probe)
+inbound NAT rules (forwards incoming traffic to a specific vm)(not commonly used)
+outbound rules
+
+LB types
+Public LB - uses public ip
+Internal LB - uses private ip. all components are same as public LB except the outbound rules. for that we need to use NAT gateway here. 
+
+LB operates at layer 4 & uses 5 tuple rule
+traffic is denied by default. allowed using nsg and outbound rules. 	
+LB standard sku supports multi az (VMs could be in different az)
+LB can use the same public ip for inbound and outbound access
+
+============================================================
+
+In azure we only have to manage the outbound access explicitly unlike aws
+vm outbound is managed by azure using default outbound SNAT
+LB outbound has to be configued through outbound rules
+NAT gateway could also be used for outbound instead of outbound rules
+
+Outbound access
+VM alone, no public IP	Gets default outbound SNAT (unpredictable IP, may change).
+VM with public IP	Outbound uses that public IP.
+VM behind Standard LB, no outbound rules	No outbound internet access.
+VM behind Standard LB, with outbound rules	Outbound via LB frontend IP(s).
+VM subnet with NAT Gateway	Outbound via NAT Gateway IP(s).
+
+AWS vs Azure Analogy
+AWS	 →  Azure
+Public subnet → IGW route - VM with Public IP / LB outbound rules / NAT Gateway
+Private subnet → no IGW, NAT only - VM without Public IP + NSG deny outbound + no NAT/LB outbound
+NAT Gateway in public subnet for private outbound -	NAT Gateway attached to subnet for controlled outbound
+
+after mar 31st, 2026. default outbound SNAT access is being retired. new vnet and subnets will be private (no outbound access). for that we need to do either of the below
+assign public ip to the VM to be used as for outbound SNAT(restrict inbound access through NSG)
+add LB with public ip to backend pool nic's & configure outbound rules
+attach NAT gateway with public ip to subnet
+
