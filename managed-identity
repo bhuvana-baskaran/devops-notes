@@ -1,0 +1,127 @@
+=================
+MANAGED IDENTITY
+=================
+In azure when one service wants to connect to another service for ex. webapp to storage account, it uses service principle
+Its an application in Azure AD, we give this right access role. it will have client ID & secret & expiration date. 
+with managed identity, no expiration date & no credentials 
+Its recommeded to use managed identity over spn. many of the azure services support managed identity
+
+--
+my understanding is that
+service principle is like a user account for outsiders for ex. third party tools like github, azuredevops or scripts.. it will provide client id & client secret just like username & password of the user accounts.. through rbac iam we provide resource access to spn
+ 
+earlier the same spn is used to access service to service in azure also but its not secure to use client secret
+ 
+to address this problem, azure came up with the solution called managed identity. through which client secret is managed by azure itself not visible anymore to the users.. this is used for service to service access in azure
+ 
+and for access from outside of azure, they came up with the concept called workload identity which is used with third party tools and scripts
+--
+
+Service Principals (SPNs)
+An SPN is essentially an identity for applications/services/scripts (non-interactive).
+Created via App Registration in Entra ID.
+Traditionally authenticated using client ID + client secret (or certificate) — like a username/password for apps.
+Used for both:
+External/third-party access (e.g., GitHub Actions, Azure DevOps pipelines, custom scripts).
+Azure service-to-service access.
+
+Access granted via RBAC (or app roles).
+Downside: Secrets are user-managed → risk of leaks, rotation headaches, sprawl.
+
+Managed Identities
+Azure's solution to eliminate secrets for Azure-internal workloads.
+Azure automatically creates and manages a special type of service principal behind the scenes.
+No client secret visible or manageable by users — Azure handles rotation and lifecycle.
+Two types:
+System-assigned: Tied to a specific Azure resource (e.g., VM, App Service, Function) — turns on/off with the resource.
+User-assigned: Standalone resource that can be attached to multiple Azure resources.
+
+Ideal for service-to-service within Azure (e.g., VM accessing Key Vault or Storage).
+Cannot be used directly from outside Azure.
+
+===================
+service principal
+===================
+its for non AD user / service to service / external tool access. 
+go to entra id - app registration - new registration - create new app. once its created go inside - manage - certificates & secrets - create new client secret. it will create secret value & secret id.
+spn has application id which is like username
+secret value is like password
+then you have to provide access to azure resources by going to the resource for ex. aks - IAM - add role assignment - assign required access for that service principal.
+this can be used to login to azure via spn permissions and used with external tools also. 
+az login --service-principal \
+  --username <APPLICATION-CLIENT-ID> \
+  --password <CLIENT-SECRET> \
+  --tenant <TENANT-ID>
+this secret value has an expiration date. we have to renew it reguarly to use for longer period.
+object id of spn is used while doing role assignment through azure CLI
+You Cannot Log In to the Azure Portal with an SPN. SPN is for programmatic access only
+Its not secure to store these credentials in code. use secrets or valut options in third party tools
+
+https://www.youtube.com/watch?v=zQp_NCsYYwc
+
+==================
+Workload Identity
+==================
+Its the solution for two main problems. one is external tool access to azure resources like AKS deployment
+second use case is it provides granular access. specific pod access to specific services. 
+For ex. I want to give access secret from my keyvault from one of my app pod. In this case I can't use the managed identity of aks nodes because its attached at the node level mainly used by kubelet to pull images for all the pods. If we assign the access to this MI, it will be applicable to all the pods in the cluster. For that reason, we are creating separate user assigned managed identity giving permission to service account of pod to this managed identity and enabling the federation.
+
+There is a confusion in Azure devops tools service connection options with using managed identity n workload identity --- need to check -- service principle through app registration also comes here need to check clearly
+
+Workload Identity Federation (also called federated identity credentials) is a secure, secretless way for software workloads running outside Azure (e.g., GitHub Actions, Azure DevOps pipelines, on-premises Kubernetes, AWS, or any OIDC-compliant platform) to authenticate to Azure resources. It builds on the OAuth 2.0 Client Credentials Flow but replaces client secrets/certificates with a trusted external OIDC token from another identity provider (IdP)
+
+Imagine you want to enter a building (Azure resources). Normally, you need a key (secret). With workload identity:
+
+You show an ID card from a trusted friend (e.g., GitHub says "this is my workflow").
+The building trusts your friend, checks the ID matches what they expect, and lets you in—no key needed.
+
+workload identity is used when we want federated access on 
+K8s workloads
+CI/CD pipelines
+Other compute platforms outside Azure
+
+In Workload Identity Federation: The "external IdP" is any system that can issue verifiable OpenID Connect (OIDC)-compliant tokens to a software workload (e.g., a CI/CD job or pod). Microsoft Entra ID trusts these tokens directly, allowing the workload to exchange them for an Entra access token - no secrets needed
+These platforms/tools become the IdP because:
+They issue short-lived, signed JWT tokens with standard claims (issuer, subject, audience).
+They expose an OIDC discovery endpoint (for public key validation).
+Entra ID configures trust based on the token's issuer URL
+
+Examples of "Tools/Platforms" Acting as IdP: GitHub Actions, K8s Clusters, Google cloud, AWS, Azure pipelines, etc
+
+example 1: I want github jobs to access my aks cluster
+source: github - act as a Idp that issues OIDC url 
+dest: aks cluster
+1. create user assigned managed identity. assign RBAC roles to this identity for whatever operation that you want that github job to do
+2. on the user assigned MI, add federated creds with issuer as Github OIDC URL, subject as your repo n branch.
+This tells Entra ID: "Trust tokens from GitHub's OIDC if they match this issuer and subject."
+3. in Github workflow, use az login action with MI's client ID, this action gets a OIDC ID token from github and exchanges it entra id and gets access token
+4. and then use further cmds, like az aks get-creds & kubectl. it will workflow
+
+It's not exactly "your AKS cluster trusts GitHub". Instead:
+The managed identity in Entra ID trusts GitHub's OIDC tokens. 
+
+example 2: my aks cluster wants to access keyvault secrets
+source: aks cluster - act as a Idp that issues OIDC url 
+dest: keyvault
+1. create aks cluster with secret store CSI driver, OIDC issuer & workload identity enabled. create user assigned managed identity and assign RBAC role for keyvault
+2. on the user assigned MI, add federated creds with issuer as AKS OIDC URL, subject as pods serviceaccount details.
+3. create service account in aks with workload identity enabled and client id as user assigned MI id. use this service account is your app deployment. mount secretproviderclass as volume. pod requests a token from aks
+4. pod exchanges the AKS OIDC token for an Entra access token (impersonating the managed identity).
+Uses that to call Key Vault APIs securely.
+
+
+Azure Portal & Azure CLI are apps registered with Entra ID like service principle.
+while login with service principle we pass client secret for authentication, where as portal & CLI are public clients they don't have client secret. for that purpose they redirect to microsoft login for authentication. However, after you sign in to the Azure Portal at least once, a service principal (the tenant-specific instance of the app) typically appears in your tenant's Enterprise applications blade (under Entra ID > Enterprise apps > All applications).
+
+
+
+
+  
+  
+
+
+
+
+
+
+ 
