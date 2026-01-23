@@ -1,0 +1,138 @@
+AKS Authentication & Authorization Summary
+1. AKS Private Cluster
+API server is private: Only accessible from within the VNet (not public).
+Kubeconfig file alone is not enough: You also need network access to the API server.
+
+2. Kubernetes Local Accounts
+Local accounts = AKS-managed credentials (admin and user) used for cluster access.
+Authentication: Handled by Kubernetes itself (not Azure AD).
+Authorization: Controlled by Kubernetes RBAC.
+
+3. Default Local Accounts in AKS
+Admin account:
+Downloaded with az aks get-credentials --admin
+Has full cluster-admin privileges.
+User account:
+Downloaded with az aks get-credentials
+Has full access in default namespace, read-only for cluster-wide resources.
+No named RBAC role for "user": Permissions are managed by AKS infrastructure, not a visible role.
+
+4. RBAC and Roles
+cluster-admin role: Always present in every Kubernetes cluster, regardless of auth/authz method.
+Admin account is bound to cluster-admin by default.
+User account is not bound to a named role; permissions are managed internally by AKS.
+
+AKS cluster Authentication and Authorization modes
+1) Local accounts with K8s RBAC
+AKS manages the user through client certifications & service account tokens. no external users through AD
+default users: admin & user. these users can we accessed through
+az aks get-credentials --admin - for admin account
+az aks get-credentials - for user account
+admin account will bind to cluster-admin role in cluster. whereas user account doesn't have associated with role. its permissions are managed internally by azure
+admin account has full access, user account has full access on default namespace and read only access on other resources
+
+In other two types of AD authentication, we have the option to enable/disable kubernetes local accounts with checkbox. technically both are same kubernetes local accounts with checkbox checked and using Local accounts with K8s RBAC option.
+
+2) Microsoft Entra ID authentication with Kubernetes RBAC
+Only Microsoft Entra ID identities (users, groups, service principals, managed identities) can authenticate to the Kubernetes API server
+No local accounts
+K8s RBAC assign permissions through role, clusterrole & rolebindings
+
+az aks create \
+  --resource-group <RG> \
+  --name <AKS_NAME> \
+  --enable-aad \
+  --aad-admin-group-object-ids <GROUP_OBJECT_ID> \
+  --enable-rbac
+  
+--enable-aad - to use Azure AD authentication
+--aad-admin-group-object-ids - group of users to have admin access (full privilege)
+--enable-rbac - to use K8s RBAC
+
+I have to provide any of the azure ad group id whose users need to have admin access to the cluster. by default they are binded to cluster-admin cluster role.
+
+If the user is not part of this assigned AD group, they won't get any permission by default. we have to create role & rolebindings to assign the permissions to users or groups
+
+The above two points are only referring about the authorization part. For authentication, they have to have atleast "Azure Kubernetes Service Cluster User" role assigned on the AKS resource(both AD admin groups assinged and additional manual users).
+
+"Azure Kubernetes Service Cluster User" role allows users to
+Download the kubeconfig file for the AKS cluster (using az aks get-credentials or via the Azure Portal).
+Access the Kubernetes API server with the credentials from the kubeconfig file
+
+With Kubernetes local accounts, the kubeconfig contains static credentials (certs/tokens), and anyone with the file can use those credentials.
+With Azure AD, the kubeconfig is a template for authenticating with Azure AD, not a credential itself.
+
+this means the kubeconfig file generated with AD & K8s RBAC mode is generic template, doesn't contain any credentials. if the user tries to access the api server through this kubeconfig file at that time only it verifies the user by asking to do az login. 
+
+How kubeconfig Works with Azure AD
+The kubeconfig file contains a configuration that tells kubectl to use Azure AD for authentication.
+When you run a kubectl command for the first time:
+If you are not logged in via the Azure CLI, it prompts you to do az login (or a browser-based login).
+After you log in, the Azure CLI stores your access token in its own local cache (not in the kubeconfig file).
+Subsequent kubectl commands use the cached access token, so you are not prompted to log in again until the token expires or you log out.
+
+Where is authentication info stored?
+Access tokens and refresh tokens are stored by the Azure CLI (in your user profile directory) and are not written into the kubeconfig file. (e.g., ~/.azure/accessTokens.json and other files)
+The kubeconfig always remains a template pointing to Azure AD as the authentication provider.
+
+access token lifetime is one hr. after that it gets expired. refresh token helps to generate the new access token. refresh token validity is default to 14 days and max 90 days. if the refresh token is not used for a period of time, typically 14 days then it will get expired before 90 days.
+
+If you use 'az aks get-credentials --admin' local accounts, it uses certs and token, its not time limited. doesn't get expired.
+
+===============================================
+my final conclusion on AKS cluster with Entra ID auth & K8s RBAC access & local accounts enabled
+I need to have any one of the below roles with AKS cluster first to download the kubeconfig file
+owner / contributor / aks cluster user role / aks cluster admin role
+especially with aks cluster user role, i can only run az aks get-credentials not --admin
+with aks cluster admin role, i can run both with n without admin
+what happens when I run with --admin is
+it will download the kube config file with local account with cert & token based authentication and associated with cluster-admin role. means I'll have admin access using local account
+
+
+what happens when I run without --admin is
+it will just download the kube config file with ad authentication method selected.. it will prompt for az login when using kubectl commands and once you logged in as admin group user you are associated with cluster-admin role and have admin access on the cluster
+if you are not part of the admin group, you can still login to the cluster but you don't have any roles / role bindings by default. you have to create it manually and assign to your user before login
+
+
+so here Azure RBAC decides whether i can download the kubeconfig file or not with az aks get-credentials and az aks get-credentials --admin command. and authentication type of AKS cluster decides what my kubeconfig file will have. the content of kube config is either local account credentials or ad user login
+
+
+with Entra ID & K8s RBAC mode, az aks get-credentials without --admin is not downloading the kube config file for local account with clusterrole profile.. its inactive here as the role of this command is taken care by Entra ID authentication type.
+=========================================================
+
+3) Microsoft Entra ID authentication with Azure RBAC
+Authentication is done through Azure AD
+For authz, it depends on Azure RBAC role assignments
+Azure Kubernetes Service RBAC Viewer - Read-only access to resources
+Azure Kubernetes Service RBAC Writer - Create, edit, delete workloads
+Azure Kubernetes Service RBAC Admin	- Manage workloads and Kubernetes RBAC
+Azure Kubernetes Service RBAC Cluster Admin	- Full cluster-admin access
+
+Assign Azure RBAC roles to users/groups/service principals in the Azure Portal or via CLI.
+Users log in with Azure AD and run az aks get-credentials to download the kubeconfig (no static credentials).
+When running kubectl commands, the AKS API server checks your Azure RBAC role and enforces permissions accordingly
+
+No need to manage Kubernetes RoleBindings/ClusterRoleBindings
+Kubernetes RBAC objects are ignored for API access
+No need to mention the default AD Admin groups while creating the cluster. 
+
+If local account is enabled, it works regardless of the Azure RBAC access. it still users K8s RBAC for admin access. 
+if I run az aks get-credentials --admin - I will get K8s admin access from K8s RBAC (local account)
+if I run az aks get-credentials  - I will get authenticated with entra id and it will check against my azure RBAC role for authorization. 
+
+also in K8s RBAC mode, once you downloaded the kubeconfig file it could be used by anyone to access the aks api server. but here in Azure RBAC mode, even if you have the kubeconfig file, you have to be AD user with permission to access the cluster. 
+
+------- so far what i covered works for AD user n group --- for other identity types i need to explore more
+
+kubelogin convert-kubeconfig -l azurecli
+this command is used to convert the authentication method in your kubeconfig file - whether it has to prompt for interactive login for every time, or it has to use existing access token of the logged in user
+
+-l azurecli - uses existing logged in user access token. if its refresh token also expired, it will prompt for login again. best for automation scripts
+-l devicecode - code based auth. stores token which is separate for logged in ad user token 
+-l interactive - Prompts for interactive browser login every time
+
+
+
+
+
+
