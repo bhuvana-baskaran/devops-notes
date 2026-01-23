@@ -1,0 +1,24 @@
+Jenkins Agents
+agent any - run on any available agent/nodes
+agent none - no global agent
+agent { label 'linux' } / agent { node { label 'docker' } } - runs on a jenkins node that has been tagged with the label docker
+docker should be installed & Docker Pipeline plugin should be enabled
+agent { docker { image 'maven:3.8.1' } } - runs inside docker container. need to install docker pipeline pl
+agent { dockerfile true } - build and run inside a Docker container defined by a Dockerfile in your repo
+
+to add the new vm as agent in jenkins
+install java n jenkins user on that VM. install whatever tools that may be required for build jobs
+In jenkins manage jenkins -> nodes -> add node - node name, label and other options, launch method - ssh / controller
+
+Jenkins Triggers
+Poll SCM - triggers for source code changes. only works based on schedule. no new commit triggers immediately
+Build Periodically - cron schedule
+SCM Webhooks (Push Events) - install source plugins(git / gitlab / bitbucket). configure source as git from UI in freestyle project & from code in pipeline project(can choose when to trigger push/pull request). create webhook in git provider and provider url as jenkins job url or jenkins git provider plugin url
+or manage jenkins -> systems -> add gitlab creds here also to be accessed by all the jobs globally
+Build after other projects are built
+
+environments {} - can be used in the pipeline level or stage level for variables
+
+withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) - scoped to step. ex. sonarqube is the temp variable name, SONAR_AUTH_TOKEN is the actual jenkins cred name
+environment { REGISTRY_CREDENTIALS = credentials('docker-cred')} - scoped to entire pipeline or stage based on where its defined. 
+withCredentials output types - string, username/password(USR & PWD), file
