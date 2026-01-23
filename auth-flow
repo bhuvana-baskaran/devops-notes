@@ -1,0 +1,54 @@
+Auth Flow:
+
+workload identity auth flow:
+1. Setup Trust Relationship (One-Time Configuration):
+Create a user-assigned managed identity or app registration in Entra ID.
+Add a federated identity credential to it, specifying:
+Issuer: The OIDC issuer URL of the external IdP (e.g., https://token.actions.githubusercontent.com for GitHub, or AKS OIDC URL).
+Subject: Unique identifier for the workload (e.g., repo:owner/repo:ref:refs/heads/main for GitHub branch).
+Audience: Often fixed (e.g., api://AzureADTokenExchange).
+Grant the identity permissions (RBAC roles) on Azure resources.
+2. Workload Requests Token from External IdP:
+The workload (e.g., a GitHub Actions job or Kubernetes pod) requests an OIDC ID token from its platform's IdP.
+3. Workload Exchanges External Token for Entra ID Access Token
+The workload (or SDK like Azure.Identity) sends the external OIDC token to Entra ID's token endpoint using the client credentials flow with federated credential:
+POST https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token
+Parameters:
+grant_type: client_credentials
+client_id: The Entra ID app/managed identity's client ID
+scope: e.g., https://management.azure.com/.default
+client_assertion_type: urn:ietf:params:oauth:client-assertion-type:jwt-bearer
+client_assertion: The external OIDC JWT token
+No secret sent
+4. Entra ID Validates and Issues Access Token
+Entra ID verifies the token's signature using public keys from the external IdP's OIDC discovery endpoint.
+Checks that issuer, subject, and audience match the configured federated credential.
+If valid, issues a standard Azure access token (JWT, ~1 hour lifetime
+5. Workload Uses Access Token:
+Attach as Bearer token to Azure API calls (e.g., deploy to App Service, access Key Vault).
+Token can be refreshed by repeating the exchange.
+
+Managed identity auth flow:
+1. you create managed identity via portal/cli/arm creates a special service principal in Entra ID and provisions internal credentials (certificates) that only Azure can access.
+2. your app code running on azure resource (VM) calls IMDS endpoint:GET http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/
+IMDS authenticates the request based on the resource's context
+3. IMDS uses the internal certificate to authenticate to Entra ID on behalf of the managed identity
+4. Entra ID Issues Access Token - Returns a JWT access token (scoped to the requested resource)
+5. Code attaches the token (Bearer header) to calls to protected resources (e.g., Key Vault, Storage, Graph API).
+The target resource validates the token with Entra ID
+6. Tokens expire (~1 hour); code requests new ones via IMDS as needed
+
+Service principle auth flow:
+1. Create App Registration → Gets client_id, Add client secret or certificate, Grant API permissions
+2. Application Requests Token: - https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token with params
+client_id
+scope: e.g., https://management.azure.com/.default
+client_secret (or certificate assertion)
+grant_type: client_credentials
+3. Entra ID Validates and Issues Token: Checks credentials → Returns access token (JWT)
+4. Application Uses Token: Same as managed identity: Bearer token in API calls.
+5. Repeat request with credentials for new token (no refresh token issued).
+
+no authoriztion code request involved in the service principle & managed identity
+Service Principal & MI (Client Credentials Flow) → No authorization code request
+User login flows (Authorization Code Flow) → Yes, authorization code is requested
