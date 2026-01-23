@@ -1,0 +1,101 @@
+Azure VNET
+private IP ranges
+10.0.0.0 - 10.255.255.255 (10/8 prefix)
+172.16.0.0 - 172.31.255.255 (172.16/12 prefix)
+192.168.0.0 - 192.168.255.255 (192.168/16 prefix)
+
+5 IPs are reserved
+x.x.x.0 - network address
+x.x.x.1 - reserved by azure for default g/w
+x.x.x.2 & 3 - reserved by azure to map azure dns ips to vnet space
+x.x.x.255 - network broadcast address
+
+IAM role for vnet full access - Network Contributor
+ 
+By default, traffic to internet & internel traffic(subnet to subnet, subnet to peered vnet subnet) is open to world
+
+NSG filters network traffic b/w azure resources in an Azure VNET
+each rule have priority b/w 100 & 4096
+NSG can be attached to subnet or network interface
+For inbound traffic, rules in the  are processed before the rules in the NIC's NSG 
+For outbound traffic, rules in the NIC's NSG are processed before the Subnet NSG
+Inbound: subnet NSG → NIC NSG
+Outbound: NIC NSG → subnet NSG
+NSG operates at layer 3 (IP address & protocols) and layer 4 (ports). no support for layer 7 (fdqn, domain name)
+Layer 7 traffic could be filtered by a NVA (virtual appliance) like Azure Firewall
+NSG allows or denies the traffic based on source ip, source port, destination ip, destination port and protocol
+ex. attaching the NSG to subnet. adding rule to only allow specific outbound port from one (source) vm to another(dest)vm
+
+VMs without public IP can be connected through bastion server. bastion has the public ip and it can be connected through azure portal/cli securely through TLS. bastion has its own subnet but should be in the same/peered vnet as the the VM
+
+vnet peering b/w vnet's in different subscriptions are possible. bastion deployed in one vnet can be used to connect to vm on the peered vnet. 
+
+bastion enables connectivity to on premise VM also through expressroute or site-to-site vpn. it uses IP based connection. it uses VMSS for scaling and supporting concurrent connections
+
+route table
+attached at the subnet level. all the vm in the subnet will follow the same routing rules
+route tables provides routing rules to control the outgoing traffic only
+NSG outbound rules are evaluated first(only to decide allow or deny), if allowed then it will check the route table for next hop where to land the traffic. 
+NSG inbound rules and azure firewall(also for DNAT translation) are for traffic filtering only. inbound routing rules are managed by azure internally 
+default routes:
+for vnet cidr -> next hop ->  Virtual network - to allow all the communication b/w all subnets in same vnet
+for 0.0.0.0/0 -> next hop ->  Internet - allow public routes to internet
+
+custom route table use case: (below are applicable for azure firewall use case also)
+force outbound traffic through security appliance (nva)
+route all outbound traffic from azure vnet to on-prem firewall
+force spoke-to-spoke communication to go through hub instead of default system routes
+drop the unwanted traffic
+
+
+virtual network routing
+Every subnet in a VNet automatically gets its own implicit system route table created by Azure which has default system routes. its not available to view from subnet portal. you can see this in effective routes on NIC attached to the VM. It has
+system routes - created by azure, can't be changed
+default routes - created by azure for each subnet
+custom routes - created by user, overrides the system routes
+When you create a custom route table and attach (associate) it to a subnet, the custom routes are combined with the Azure system/default routes. Custom UDRs override system routes when there is a conflict
+
+
+VM is not directly attached to a subnet — the VM is attached to one or more NICs, and each NIC connects to its own subnet (which can be different subnets in the same VNet for multi-NIC VMs). NIC is directly attached to subnet
+
+
+azure firewall - layer 7 traffic filtering - fqdn. it has public & private ip. 
+it could be installed in same vnet or in hub vnet
+azure firewall handles both inbound and outbound traffic, but its primary strength and most common use case is outbound protection and filtering
+in nsg we provide source, destination ip's & ports to allow or deny the traffic. here we use fdqn to allow or deny the traffic
+it can filter traffic to/from on prem networks also. 
+it provides SNAT & DNAT support
+ex. all outbound traffic will use firewall public ip to egress to the internet. private ip to route traffic b/w spokes 
+by default, all the traffic is denied
+common use case is azure firewall is deployed into hub vnet with AzureFirewall subnet. it has firewall policy & public ip for egress traffic. 
+azure firewall policy has 3 types of rules, DNAT rules, application rules(7) & network rules(3&4)
+how it works? 
+create azure firewall in hub vnet. create vm's in spoke vnet. attach route table to all the subnets to route all the outgoing traffic to azure firewall private ip. 
+then in azure firewall create rules collection group and application rule to allow the traffic to only microsoft.com (source - subnet range, destination - fdqn - microsoft.com)
+network rules are similar to nsg rules. allow communication b/w source vnet/subnet to destination sub using ip & protocol. 
+DNAT rules are used to allow and control inbound traffic from the internet. External client connects to Azure Firewall’s public IP on a specific port.Firewall checks if a DNAT rule matches the incoming traffic.
+If it matches → Firewall translates the destination:Public IP:port → Private IP:port of your target resource
+
+my findings
+===============
+VM with public ip is not accessed publicly without nsg 
+azure bastion doesn't create bastion subnet by default. we have to create before creation bastion VM
+NSG not required for bastion connection. because it uses private ip
+for public access, public IP & NSG is required. NSG is attached to NIC or subnet
+default NSG rules
+inbound: 
+Allows traffic between resources inside the same Virtual Network
+Allows traffic from the Azure Load Balancer health probes to your VM
+outbound:
+Allows outbound traffic between resources inside the same VNet
+Allows outbound traffic from your VM to the internet
+ssh rule to allow ssh access to my ip
+source - my ip
+source port - *
+dest - vm ip 
+dest port - 22
+protocol - tcp
+
+vnet1, subnet1 & 2 & bastionsubnet, vnet2, subnet1 & 2, I created vm in all these subnets. vm's in vnet1 are connected through bastion without nsg & public ip. vm's in vnet2 are also connected through the bastion in vnet1 after enabling the vnet peering
+
+control granular access between specific VMs across peered VNets (east-west) - NSG
