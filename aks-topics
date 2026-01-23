@@ -1,0 +1,35 @@
+aks upgrade options:
+cluster blue-green upgrade - two clusters with latest and existing version
+in place upgrade
+node pool blue-green - two nodepools with latest and existing version
+
+Karpenter for AKS
+AKS cluster autoscaler on azure dynamically scales k8s worker nodes. it runs as deployment in your cluster
+Enabled by default in AKS (aks portal scale node pool)
+it creates nodepools(Azure VMSS) with specific VM sku
+F - cpu optimized
+E - memory optimized
+B - burstable
+D - general purpose
+NV - GPU enabled
+Karpenter replaces the cluster autoscaler in K8s for non system nodepools
+it improves app availability - responds quickly n automatically to changes in app load
+lower compute costs - remove under utilized nodes, replace expensive nodes with cheaper alternatives. consolidates workloads onto more efficient compute resources
+az aks create -n aks-name -g my-rg --node-provisioning-mode Auto - to user karpenter
+You have to create NodePool resource in K8s with spec as VM arch, sku family, OS, capacity & AZ, CPU & memory limit. the VM's created by this nodepool aren't part of VMSS. they are individual VM's with network interface & disk. 
+Once its enabled, you can't see this in AKS nodepools portal as portal will only show the nodepools that are part of VMSS. Karpenter will create independent VM's and will choose the cheaper node size among the given SKU family. 
+Karpenter pods are running on the control plane only not in the nodepool. it will come with some default CRDs.
+kubectl get nodepool - AKS by default comes with default & system-surge nodepools
+kubectl get AKSNodeClass - default & system-surge - default nodeclass used by default nodepool. it specifies the OS version of VM & its Disk size. 
+
+AKS managed prometheus n grafana & log analytics for monitoring
+DCE - Data Collection Endpoint
+DCR - Data Collection Rule
+AMA-metrics & AMA-logs daemonset agent pods are running inside the AKS cluster which will send the data to DCE with DCR rules applied and then it transform the metrics to managed prometheus & logs to Logs analytics. 
+Managed grafana then used to query the metrics from managed prometheus
+AKS -> insights -> configure monitoring -> enable container logs (it will be send to LAW), enable prom & grafana
+For log analytics - you specify the log analytics workspace
+For prometheus - you specify the azure monitor workspace
+For grafana - you select grafana workspace instance
+cost preset - configurations related to DCR - frequency to fetch data, namespace filtering, logs filtering 
+once its enabled, you can see the ama-logs n ama-metrics pods running inside the cluster. log analytics workspace, azure monitor workspace for prometheus, managed grafana, DCE & DCR created in cluster RG for every agent metrics & logs. 
