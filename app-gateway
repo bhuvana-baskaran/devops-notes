@@ -39,7 +39,8 @@ it has its own subnet, multiple app g/w can share the same subnet
 could be stopped and started using command line to reduce cost
 supports key vault to store TLS certificates
 
-In LB inbound is blocked without nsg because it simply forwards the traffic to backend
+In LB inbound is blocked without nsg because it simply forwards the traffic to backend. It performs dnat means changes the destination ip & port to backend private ip & port from LB ip & port. 
+
 where as in app g/w It terminates HTTP/HTTPS traffic itself and then initiates new connections to backend pool members
 Standard LB backend pool VMs lose default outbound internet access.
 To give them outbound connectivity, you must configure:
@@ -49,3 +50,21 @@ AppGW itself is a managed service and has built-in outbound connectivity to reac
 
 
 if i want my app to be accessed internally for that i want to assign private ip to app g/w frontend. that frontend ip should be from app g/w dedicated subnet. 
+
+## Key Differences Recap: Azure Load Balancer vs Application Gateway  
+(Relevant to Envoy Gateway / Standard LB Setup on AKS)
+
+| Aspect                        | Azure Load Balancer (L4, Envoy Gateway setup)          | Azure Application Gateway (L7)                              |
+|-------------------------------|--------------------------------------------------------|-------------------------------------------------------------|
+| Connection Handling           | Forwards original connection (DNAT dest only)          | Terminates client conn, creates new connection to backend   |
+| Source IP at Backend          | Original client public IP (preserved)                  | Application Gateway instance private IP                     |
+| Destination at Backend        | Backend private IP (after DNAT)                        | Backend private IP (direct)                                 |
+| NAT Type (Inbound to Backend) | DNAT (public → private destination)                    | No DNAT – new connection uses private IPs directly          |
+| SNAT on Backend Leg           | No (inbound)                                           | No – uses own private IP as source naturally                |
+| "Conversion" Method           | Packet-level NAT (preserves original flow)             | Full proxy + new connection                                 |
+| Client IP Visibility at Backend | Direct (source IP)                                   | Via `X-Forwarded-For` HTTP header only                      |
+| NSG Sees Traffic as...        | From public internet (client IP)                       | From internal VNet (App GW subnet private IP)               |
+| Why It Reaches Backend        | Default `AzureLoadBalancer` rule allows it             | Intra-VNet default allow (or explicit from App GW subnet)   |
+| Typical NSG Rule Needed       | Allow from `AzureLoadBalancer` service tag             | Allow from Application Gateway subnet CIDR (if restricted)  |
+| Layer 7 Features              | None (no HTTP awareness)                               | URL/path routing, WAF, SSL termination, header rewrite      |
+| Use Case in AKS               | Public LoadBalancer Service (e.g., Envoy Gateway)      | Advanced ingress with WAF, routing, TLS offload             |
