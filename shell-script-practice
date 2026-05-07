@@ -1,0 +1,479 @@
+shell scripting
+variables
+local
+env variable
+special var 
+$0 - returns filename
+$1 - first arg
+$@ - returns all the arguments
+$# - returns total no. of arguments
+$? - exit status of last cmd
+$$ - pid of the current script
+
+set -vx - v means verbose, x means debugging
+\ - negating the special characters
+
+operators
+`expr value1 <operator> value2`
+arthmetic operators - + - * / % == !=
+a=10
+b=20
+add=`expr $a + $b`
+echo "a + b: $add"
+multiply=`expr $a \* $b`  - \ is to negate the multiply operator
+echo "a + b: $multiply"
+
+/ - return the quotient
+% - return the reminder
+
+average - sum of all the numbers / total
+
+if [ condition ]; then
+fi
+
+if [ $a ]; then  - true if defined.. false if its not defined
+	echo "$a..."
+fi
+
+if [ $a == $b ]; then  	- no need for expr for conditional operators
+	echo "they are equal"
+else
+	some other code	
+fi
+
+relational operators(for numbers): -eq, -ne, -gt, -lt, -ge, -le
+if [$a -eq $b]
+then
+	echo "sdfsdf"
+else
+	echo "sdfds"
+fi
+
+string operator: =, !=, -z (empty), -n (non empty), [ "$a" ] (non empty)
+if [$a = $b]
+then
+	echo "sdfsdf"
+else
+	echo "sdfds"
+fi
+
+file operator
+file="/home/ubuntu/somepath/filename.txt"
+if [-r $file]
+then
+	echo "file has read access for owner"
+elif
+	echo "file doesn't have read access"
+else
+	echo "some other code"
+fi
+if [-w $file] - checks write access for owner
+if [-x $file] - checks executable access for owner
+if [-f $file] - checks if its a file
+if [-d $file] - checks if its a directory
+if [-s $file] - checks file size is non zero - not empty
+if [-e $file] - checks file is there or not
+
+switch statements
+fruit="banana"
+case "$fruit" in
+	"banana")
+		echo "Banana"
+		;;
+	"orange")
+		echo "Orange"
+		;;
+	*)
+		echo "Not a fruit"
+		;;
+esac	
+
+exit 1 - error the code and exit
+read var1 - get input from user in runtime
+echo $var1
+read -p "Enter your age: " age - -p prompt - adding text along with getting input
+
+
+boolean operator
+-a - and - all conditions have to be true 
+-o - or - any one condition to be true
+if [$a -eq 0 -a  $b -le 2]
+then
+	echo "both conditions met"; returns true"
+else
+	echo "conditions are not met"; returns false"
+fi
+
+Loops
+while loop - runs while the condition is true
+while [condition]
+do
+	statement
+done
+
+set -vx
+count=1
+while [ $count -le 9 ]
+do
+	echo "count = $count"
+	count=`expr $count + 1` || count=$((count+1))
+done
+output: 1 2 3 4 5 6 7 8 9
+
+until loop - runs untill the condition becomes true. opposite of while
+until [condition]
+do
+	statement
+done
+
+a=10
+until [ $a -lt 10 ]
+do
+	echo "a=$a"
+	a=$((a-1))
+done
+
+for loop
+for variable in val1 val2 val3
+do
+	statement
+done
+
+for i in 1 2 3 4 5
+do
+	echo "$i"
+done
+
+Loop Control
+break and continue
+a=0
+while [ $a -lt 10 ]
+do
+	echo "a = $a"
+	if [ $a -eq 5 ]; then
+		echo "break the loop"
+		break;
+	fi
+	a = $((a+1))
+done
+o/p: 0,1,2,3,4
+
+nums="1 2 3 4 5 6 7"
+for num in nums
+do
+	q=`expr $num % 2`
+	if [ q -eq 0 ]; then
+		echo "number is even"
+		continue
+	fi
+	echo "$num is odd"
+done
+o/p: 1,3,5,7
+
+Functions
+function_name() {
+	statements
+}
+
+function_name <args>
+
+hello () {
+	echo "hello world"
+	echo "$1  $2"
+	return $(( $1 + $2 ))
+}
+hello 10 20
+
+redirections
+> write o/p to a file
+>> append o/p to a file
+script.sh > /dev/null - discard the output
+> /dev/null - discard console o/p
+2> /dev/null - discard the error
+nohup script.sh 2>&1 & - no hang up - console o/p and error are redirected to nohup.out
+
+capturing o/p
+var=`ls | wc -l`  or var=$(ls | wc -l)
+echo $var
+
+grep
+-i - case insensitive
+-v - invert match
+-E - extended regex
+-n - show line numbers
+-r - recursive search in directories
+-w - whole world only
+
+awk
+-F - set field separator 
+{print $1, $2} - print specific columns
+NR - line number, NF - number of fields
+
+# Example: Find error lines and print the 2nd column
+grep "ERROR" logfile.txt | awk '{print $2}'
+
+# Example: Exclude lines with "DEBUG" and print line numbers + first field
+grep -v "DEBUG" logfile.txt | awk '{print NR, $1}'
+
+grep '[5-9]\{1\}\ weeks\|years\|months' - The regex matches lines containing “5 weeks”, “6 weeks”, … “9 weeks”, or any line containing “years” or “months”
+
+grep -E '[5-9] weeks|years|months'
+
+built in variables
+UID - the real user ID (who started the process).
+EUID - the effective user ID (who the process is running as).0 → root user
+$USER - username 
+$HOME - user's home directory
+
+
+k8s pod pending
+insuffient resources
+no node available - max node reached, taints tolerations
+pv is not attached to the pod. pod & pvc is pending. it couldn't find the matching pv
+
+k8s pod containercreating state
+mountvolume failed.. cm or secret not found
+
+desired replicas are not running.. out of 3 only 2 are running
+resource quota applied on namespace. kubectl describe rs rs-name
+
+imagepull backoff
+image and its tag not found in dockerhub. 
+
+crashloopbackoff - pod is restarting atleast 3 times
+oomkilled - pod is consuming more memory than what is defined in resource request and limit
+livenessprobefailed - health check failed
+init container failed
+application error - check logs of container
+
+pod is running but app is not reachable. svc label issue
+
+============================
+Write a shell script that monitors a given directory for new files. When a new file is detected:
+Log the filename and timestamp into a log file.
+Compress the file into a .tar.gz archive.
+Move the archive into a backup directory.
+Ensure the script runs continuously and handles errors gracefully (e.g., if the backup directory doesn’t exist).
+#!/bin/bash
+
+WATCH_DIR="$HOME"                # safer than /home
+BACKUP_DIR="$HOME/backup"        # writable directory
+LOG_FILE="$HOME/log.txt"
+
+mkdir -p "$BACKUP_DIR"
+new_files=$(find "$WATCH_DIR" -type f -mmin -5)  # files modified in last 5 minutes
+
+if [ -n "$new_files" ]; then
+    for i in $new_files; do
+        echo "$i - $(date)" >> "$LOG_FILE"
+        tar -czf "$BACKUP_DIR/$(basename "$i").tar.gz" "$i"
+    done
+fi
+the above is not an array.. find output just stored in a single variable with spaces. thats why -n used to check string is empty or not. while looping, its splitting based on spaces.
+--------------
+
+#!/bin/bash
+
+WATCH_DIR="$HOME"
+BACKUP_DIR="$HOME/backup"
+LOG_FILE="$HOME/log.txt"
+
+mkdir -p "$BACKUP_DIR"
+
+# Store find output directly into an array
+new_files=( $(find "$WATCH_DIR" -type f -mmin -5) )
+
+if [ ${#new_files[@]} -eq 0 ]; then
+    echo "No new files found"
+else
+    for file in "${new_files[@]}"; do
+        echo "$file - $(date)" >> "$LOG_FILE"
+        tar -czf "$BACKUP_DIR/$(basename "$file").tar.gz" "$file"
+    done
+fi
+above is actually storing in array and looping through array. 
+mapfile -t new_files < <(find "$WATCH_DIR" -type f -mmin -5) could also be used instead of ($( ))
+
+-------------
+
+#!/bin/bash
+
+WATCH_DIR="/home"
+BACKUP_DIR="/backup/directory"
+LOG_FILE="log.txt"
+
+mkdir -p "$BACKUP_DIR" - avoid errors if the directory already exists
+
+inotifywait -m -e create "$WATCH_DIR" --format '%w%f' | while read NEWFILE
+do
+    echo "$NEWFILE - $(date)" >> "$LOG_FILE"
+    BASENAME=$(basename "$NEWFILE")
+    tar -czf "$BASENAME.tar.gz" "$NEWFILE"
+    mv "$BASENAME.tar.gz" "$BACKUP_DIR"
+done
+basename filename - prints the filename
+
+inotifywait -m -e create "$WATCH_DIR" --format '%w%f'
+inotifywait is part of inotify-tools (Linux utility for filesystem events).
+-m → “monitor mode,” keeps running continuously.
+-e create → watches for new file creation events.
+--format '%w%f' → outputs the full path of the new file.
+Example: If a file /home/test.txt is created, it prints /home/test.txt
+
+above example uses inotifywait
+==========================
+
+Example 1: Read a File Line by Line
+#!/bin/bash
+while read line; do
+    echo "Line: $line"
+done < myfile.txt
+
+#!/bin/bash
+while IFS= read -r line; do
+    echo "Line: $line"
+done < myfile.txt
+IFS= prevents trimming whitespace.
+-r prevents backslash escapes from being interpreted.
+
+# Method 1: Simple for loop
+for f in "${files[@]}"; do
+    echo "Processing: $f"
+done
+
+#!/bin/bash
+
+numbers=()   # start with empty array
+for i in {1..5}; do
+    numbers+=("$i")   # add each value
+done
+echo "Numbers: ${numbers[@]}"
+
+Looping with Index
+arr=("alpha" "beta" "gamma")
+for i in "${!arr[@]}"; do
+    echo "Index $i -> ${arr[$i]}"
+done
+
+
+
+Read each line of find output into an array
+mapfile -t new_files < <(find "$WATCH_DIR" -type f -mmin -5)
+${#new_files[@]} gives the number of elements
+
+array is empty using array length
+arr=()
+if [ ${#arr[@]} -eq 0 ]; then
+    echo "Array is empty"
+else
+    echo "Array has elements"
+fi
+
+
+=============
+#Create an array of five colors and print each color on a new line.
+colors=("green" "blue" "red" "purple" "pink")
+for color in "${colors[@]}"
+do
+  echo $color
+done
+
+#Start with an empty array. Use a loop to add numbers 1 through 10 into the array, then print the array length.
+numbers=()
+for i in {1..10}
+do
+  echo $i
+  numbers+=($i)
+done
+echo ${#numbers[@]}
+
+#Create an array of fruits. Print the first and last fruit using array indices.
+fruits=("apple" "orange" "mango" "grapes" "kiwi")
+echo "${fruits[0]}"
+echo "${fruits[-1]}"
+
+#Store three service names (nginx, mysql, redis) in an array. Write a loop that prints systemctl status <service> for each.
+services=("nginx" "mysql" "redis")
+
+for s in "${services[@]}"; do
+  echo "systemctl status $s"
+done
+
+#Ask the user to enter three filenames. Store them in an array and then print them all.
+filenames=()
+for i in {1..3}; do
+    read -p "Enter filename $i: " file
+    filenames+=("$file")
+done
+echo "You entered ${#filenames[@]} filenames:"
+for f in "${filenames[@]}"; do
+    echo "$f"
+done
+
+#Create an array of four cities. Remove the second city and print the updated array.
+cities=("chennai" "kolkata" "cbe" "bangalore")
+unset cities[1]
+for i in ${cities[@]}
+do
+  echo $i
+done
+
+#Use find to collect all .sh files from /box into an array. Print the total count and the names.
+directory=( $(find /box -type f -name "*.sh") )
+for i in ${directory[@]}
+do
+  echo $i
+done
+echo ${#directory[@]}
+
+#!/bin/bash
+# Collect all .sh files into an array
+directory=()
+while IFS= read -r file; do
+    directory+=("$file")
+done < <(find /box -type f -name "*.sh")
+# Print each file
+for i in "${directory[@]}"; do
+    echo "$i"
+done
+# Print total count
+echo "Total .sh files: ${#directory[@]}"
+
+#Create an array of names. Write a script that checks if "Alice" exists in the array.
+names_arr=("bhuvana" "karthik" "baskaran" "murugesan" "alice")
+for i in ${names_arr[@]}
+do
+  if [ $i == "alice" ]; then
+    echo "found"
+    break
+  fi
+done
+
+names=("bhuvana" "karthik" "baskaran" "murugesan" "alice")
+if [[ "${names[@]}" =~ "alice" ]]; then
+  echo "found"
+fi
+
+#Create an array of numbers. Print them in reverse order using a loop.
+arr=(1 2 3 4 5 6 7 8 9 2)
+len=${#arr[@]}
+if [ $len -gt 1 ]; then
+  for ((i=$len-1;i>=0;i--))
+  do
+    echo ${arr[$i]}
+  done
+fi
+
+printf "%s\n" "${arr[@]}" | tac  #printf "%s\n" prints each element on a new line. tac reverses the lines
+
+#Store numbers in an array and calculate their sum using a loop.
+numbers=(2 4 76 98 3 78 3 76 23 56)
+sum=0
+for i in ${numbers[@]}
+do
+  sum=$((sum+i))
+done
+echo $sum
+
+
+
