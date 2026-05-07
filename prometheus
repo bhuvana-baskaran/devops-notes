@@ -1,0 +1,33 @@
+prometheus on k8s
+prometheus server collects all the metrics from k8s cluster. k8s has api server which exposes lots of metrics about k8s cluster. lots of metrics are exposed out of the box of your k8s cluster. 
+target for k8s cluster - https://api-server-ip/metrics - will get the status of api server & default installations in the cluster
+what if you want to get the out of the box metrics that api server provides like pod, deployment and other resources status? 
+kube-state-metrics exporter controller - you can create service for this kube-state-metrics and you can use this. when you call this on the metrics endpoint, it would give you lots of info about k8s cluster. 
+prometheus-server - this is prometheus http server gives prometheus web ui
+
+both api server & kube state metrics only give you the info at certain level. suppose if you want to monitor your own app deployed in cluster like livenessprobes or healthcheck, developers should write metrics server or they can use prometheus metrics libraries using that they can expose a metrics endpoint. and prometheus can scrape the metrics endpoint (inside the configmap we provide where to scrape the metrics)
+
+kube-state-metrics server gives you metrics endpoint with all the metrics that prometheus can scrape
+Now go to prometheus-server configmap - this is the prometheus configuration file prometheus.yaml. where you add the target for kube state metrics so that you can get more details on the k8s resources
+
+Grafana - data visualization. configure prometheus as datasource
+
+inside the container
+/etc/prometheus/prometheus.yaml - config file path
+/data/prometheus - data directory
+
+prometheus without kube-state-metrics monitors
+node metrics - usage
+pod/container usage
+prometheus itself
+service endpoints where prometheus.io/scrape is set to true
+
+prometheus with kube-state-metrics monitors app state
+desired vs actual pods in deployments
+restarts
+node state ready or something else
+pv, pvc state bound or not
+ns limits quotas
+job status active, succeeded or failed counts
+
+adding new scrape config while prometheus is already running using helm chart wouldn't restart the pod and there is no data loss also because it uses service monitor and prometheus operator  watches for ServiceMonitor and PodMonitor resources. When you create or update a ServiceMonitor, the operator dynamically updates Prometheus’ scrape configuration
