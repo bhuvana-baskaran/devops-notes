@@ -1,0 +1,71 @@
+Loki is a log aggregation system designed to store and query logs
+cost effective and easy to operate
+loki doesn't index full text from logs like elasticsearch - loki only indexes labels(metadata) from logs
+
+Loki agents needs to be installed on all the servers from where you want the logs - Promtail or Fluentd or Logstash.
+
+Agents grab the logs from the server and streams them into loki instance. whatever the labels we specify in the agents, we can search the logs based on that labels in grafana. because it only indexes labels. storage options - local file system or s3 storage
+
+LogQL - query language to interactive with loki to get the logs
+
+install loki
+download loki, unzip it. download config file for loki - loki-local-config.yaml - in this config file, loki listener port and storage path is defined. by default its running on 3100 and storage is local file system.
+run the loki executable with config file
+./loki-linux-amd64 -config.file=loki-local-config.yaml
+check its working by running http://ip:3100/metrics - metrics exposed by the loki server
+
+if we want to collect logs from individual nodes, install promtail on all of the nodes
+download promtail executable along with its config file. in promtail config file, we have promtail listening port which is 9080 and we have client which is the url of the loki server. update this url on where loki is running by specifying ip and port. along with this we have scrape config.
+here we have job name, target and labels (metadata) key value pairs for index and it has path which specifies from which path it has to collect logs.
+if you want to collect logs from more than one location, add more jobs.
+run promtail using
+./promtail-linux-amd64 -config.file=promtail-local-config.yaml
+
+verify loki is collecting the logs by adding loki in grafana data source. go to explore and select data source as loki and search for logs
+
+To collect logs from apps running on k8s,
+first install loki instance on k8s cluster. but it could be installed outside of the k8s cluster as well. grafana dashboard also we can deploy outside k8s cluster or within the k8s cluster.
+promtail needs to be installed on each node since its collecting logs from all the pods running on that node and sending it to loki. for that we use daemonsets.
+
+Helm chart is there to install loki, grafana and promtail in cluster
+helm repo add grafana grafana-chart-url
+helm repo update
+help search repo loki - it lists all the different loki charts - loki, loki-canary, loki-distributed, loki-simple-scalable, loki-stack, fluentbit and promtail
+loki-stack - deploys loki, grafana dashboard and promtail on all the nodes
+
+get helm chart values using
+helm show values grafana/loki-stack > values.yaml - it has loki configuration enabled, promtail configuration enabled, fluentbit and grafana disabled by default. we can enable it if we want.
+helm install --values values.yaml loki grafana/loki-stack
+kubectl get all
+it has deployment for grafana dashboard, daemonset for promtail and statefulset for loki and respective services for all of them
+this chart also adds loki as datasource in grafana
+
+by default all services are with cluster ip type. we can change it into nodeport or ingress to access the grafana dashboard - svcip:3000
+for grafana dashboard password, check the k8s secret
+kubectl describe secret loki-grafana
+kubectl get secret loki-grafana -o jsonpath="{.data.admin-password}" | base64 --decode
+
+get promtail config values file
+kubectl get pod
+kubectl describe po loki-promtail - see the mounts /etc/promtail from config - config is a secret volume. let's check the secret. secret name loki-promtail
+kubectl get secret loki-promtail -o jsonpath="{.data.promtail\.yaml}" | base64 --decode > promtail-helm-values.yaml - here is the promtail values file - servers - where promtail is running, client - where loki is running and scrape configs
+if we want to add new log files or change anything on the scrape config file - this is the promtail-helm-values.yaml file you can change and do delete the promtail pod and recreate
+
+once you updated the promtail-helm-values.yaml file, delete the existing secret
+kubectl delete secret loki-promtail
+kubectl create secret generic loki-promtail --from-file=./promtail.yaml
+kubectl delete po loki-promtail
+
+Prometheus is a pull-based system: It scrapes metrics from targets (like pods, nodes, services) by querying their endpoints.
+It doesn’t need an agent on every node. Instead, it discovers targets via Kubernetes service discovery and scrapes them centrally
+
+Loki itself is a log aggregation system, but it relies on agents like Promtail to collect logs.
+
+Logs are node-local (each node has its own /var/log and container logs). To capture them, you need an agent running on every node.
+
+That’s why Promtail (or Fluentd/Fluent Bit) is deployed as a DaemonSet — ensuring every node has a collector that tails logs and ships them to Loki
+
+promtail.yaml file is the place to update listener port, loki url and scrape configs
+
+
+helm upgrade --install loki grafana/loki-stack --namespace grafana --set loki.persistence.enabled=true,loki.persistence.storageClassName=default,loki.persistence.size=5Gi
