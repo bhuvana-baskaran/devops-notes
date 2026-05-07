@@ -1,0 +1,15 @@
+AWS cloud migration
+steps
+1. preparation - monolythic to microservices
+2. planning
+3. migrate
+4. monitor
+5. optimize
+
+Rehost - lift and shift, if no dependency on OS, hardware, environment. minimal changes
+Replatform - best practices... increasing scalability and availability
+Refactor/Rearchitecture - monolithic to microservices
+Relocate - om prem vm k8s - eks or openshift
+Retain - keeping something as it is and migrating others
+Retire - retiring unused apps
+Repurchase - 
