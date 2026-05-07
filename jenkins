@@ -22,3 +22,85 @@ environments {} - can be used in the pipeline level or stage level for variables
 withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) - scoped to step. ex. sonarqube is the temp variable name, SONAR_AUTH_TOKEN is the actual jenkins cred name
 environment { REGISTRY_CREDENTIALS = credentials('docker-cred')} - scoped to entire pipeline or stage based on where its defined. 
 withCredentials output types - string, username/password(USR & PWD), file
+
+pipeline types:
+scripted - groovy based
+declartive - structured
+
+jenkins credentials scope
+global - available across all the jobs
+system - creds available only to jenkins not to jobs
+
+store creds in jenkins securely
+credentials plugin 
+secret text plugin
+hashicorp vault plugin
+
+JENKINS_HOME - directory where all the configs, settings and logs are stored - /var/lib/jenkins
+jobs/<job_name>/builds - configuration file and history of builds,logs,artifacts for every jobs
+workspaces - folder where jobs downloads source code and runs builds. it creates the folder on agent vm
+$JENKINS_HOME/workspace/<job_name>
+maven local repo dir - /var/lib/jenkins/.m2/repository
+
+plugins for sending email for build failures
+mailer
+email extension template
+manage jenkins -> system -> email notification -> update smtp details
+update job post build action as email notification to make use of this
+
+stage view plugin - to see the stages in console output 
+
+declarative pipeline
+can restart from specific stages - skipping few stages
+performs scm checkout automatically at the start of pipeline - no need to write separate stage. in scripted pipeline everything is scripted. so we have to write checkout scm stage. 
+
+cleanWs() - deletes the job’s workspace directory (like /var/lib/jenkins/workspace/<job_name>)
+
+java - build tool maven - dependency file - pom.xml
+python - build tool pip - dependency file - requirements.txt
+nodejs - build tool npm - dependency file - package.json
+
+environment variables
+builtin variables
+BUILD_ID
+BUILD_URL
+JOB_NAME
+WORKSPACE
+IMAGE_TAG = "${BUILD_NUMBER}" - works in declarative pipeline
+IMAGE_TAG = "${env.BUILD_NUMBER}" - works in groovy expression block environment & script because it doesn't know jenkins env variables
+
+manage jenkins -> credentials -> global -> add credentials
+types: username/password, secret file, secret text, ssh private key, api key, ssl cert
+
+user management & RBAC
+create user -> manage jenkins -> user - > username/password
+install plugin for RBAC - Role based authorization strategy
+manage jenkins -> security -> authorization - change the value to role based strategy
+manage jenkins -> manage and assign roles -> create roles & assign to user
+
+two ways of referring credentials
+DOCKERHUB_CREDENTIALS = credentials('DockerHub') - credentials available to whole pipeline
+withCredentials([usernamePassword(credentialsId: 'DockerHub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+        } - credentials only exist inside the block
+
+archieveartifacts
+
+shared libraries
+create separate folder or repo for common functionalities
+folder name - var
+filenames - build.groovy
+@Library("library_name") _
+call the function using build()
+manage jenkins -> system -> global trusted pipeline libraries - add library name & git repo of library
+
+
+
+multi branch pipeline
+create multi branch project job and give repo url - it will detect all the branches in the repo and create that many pipelines
+
+github project in the basic section of job is mainly used in the github webhook integration to decide which job to trigger when events received from webhook. used as metadata also
+
+azure devops
+service connections
+library - variable groups - for username / password store.. call them in code using - groups: group name
