@@ -1,0 +1,72 @@
+I learnt one important thing about helm today
+for ex. helm chart is installed and respective deployments and services are running
+helm revision is 1
+I want to update labels on the deployment I can't update the deployment directly for two reasons
+1. deployment won't allow to update the labels. its a immutable change
+2. helm upgrade will not recognize the label change. it will revert it
+
+How can we do that then?
+1. you can update the helm chart values for deployment labels and do helm upgrade. If it fails, then delete the deployment and then do the helm upgrade again
+doing helm upgrade without deleting the deployment might fail as this is the immutable change on the deployment.
+similarly sometimes what are passing as env to the container from helm values, if you feel its not reflected, then you can delete the deployment and do helm upgrade
+
+
+envoy gateway api
+gateway api CRD's & envoy controller are installed through helm or github repo
+envoy controller is running in envoy-gateway-system namespace
+gatewayclass - cluster wide resource
+gateway - same as app or common namespace
+httproute - same as app namespace
+install CRDs + controller → Create GatewayClass (cluster-wide) → Create Gateway (namespaced, triggers LB/public IP) → Create HTTPRoute (app-namespaced, routes traffic).
+gateway is important
+
+
+when I apply gateway, envoy gateway controller has created the pod & LB service in envoy-gateway-system
+envoy-gateway-6b7544dd65-fgc8d - controller pod
+envoy-app-my-gateway-6170702f-78d89fb6f7-hp8z4 - shows app traffic
+
+networking plugin
+networking plugin is the one who manages pod network in k8s cluster. k8s has provided CNI to attach the plugin to the cluster to manage the pod networking
+control plane pods are static pods gets same ip as node. 
+before installing the network plugin pods will get the same ip as the node only if the hostnetwork is set to true. 
+so cilium networking plugin when installed it gets the ip same as node and agents are running as daemonsets across all the nodes. 
+for other pods hostnetwork is set to false by default. so they use pod network ip.
+
+single container can expose one port or many port. for ex.  nginx container can server http on port 80 & https on port 443. java app might expose rest api on 8080 and metrics endpoint on port 9090.
+in that case service can have multiple ports pointing to the same container different protocols
+sometimes two container runs on same pod on different ports can also be accessed by a service with multiple port configurations.
+but a service should be mapped to single deployment using app labels and selectors. don't use same labels across different deployment. this breaks the abstration. no load balancing will happen
+
+kubectl rollout history deployment/sts/ds/jobs/cronjobs/rs myapp
+kubectl rollout undo deploy myapp
+kubectl rollout undo deploy myapp --to-revision=1
+
+rollout history only contains the revisions where pod template spec is changed. 
+we can revert the changes with rollout undo. 
+what can't be reverted via rollout history
+external resources like configmap, secret, pv
+deployment metadata
+scaling replicas
+svc or ing changes
+
+--record option shows the actual command in the caused the change in the revision history. it doesn't track anything extra. by default all the pod level changes are tracked and latest 10 revisions are kept in the history
+
+advantages of ingress over LB svc
+single public ip in ingress whereas each LB service has its own public ip
+no path or host based routing
+cost efficiency
+TLS terminitstion & security - ingress can handle tls ssl termination centrally
+Scalability & maintainability - only one ingress controller to manage instead of multiple LBs
+
+K8s authentication types
+============
+username & token in a static csv file & passed on to kube api server
+certificates signed by k8s CA
+3rd party identity provider
+
+service account for external tools
+it has token which is a k8s secret type service-account-token of  associated with this service account. 
+access the cluster using kubectl --server=apiserveraddress --certificate-authority=cluster-ca-crt --token $token get pod
+$token holds the base64 decoded value of token from the secret
+
+need to check entrypoint vs cmd.. in both docker and k8s perspective
