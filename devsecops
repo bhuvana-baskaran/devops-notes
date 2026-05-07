@@ -1,0 +1,432 @@
+DevSecOps
+
+SAST Tests - validate our app code
+	SQL injection?
+	weak or outdated encryption algorithm?
+	cross-site scripting?
+Static code analysis (app is not running)
+Identifies security vulnerabilities in app's source code, configuration files, etc. 
+Looks for common coding errors, deviation from secure coding practices, etc.
+Secret scanning across platforms
+
+SCA Test (Software Composition Analysis)
+Check third-party and open source libraries and frameworks (dependencies of our app)
+We use SCA tools to scan our app dependencies for vulnerabilities
+
+DAST Test
+There are security issues that can only be detected, when the application is running
+Focuses on identifying vulnerabilities in a running application
+DAST tools probe an app from ouside, just like a potential attacker would and they observe how the app responds (simulating an attacker)
+ 
+Image scanning
+scans every image layer for vulnerabilities
+	Usage of root user?
+	Usage of vulnerable OS package?
+	Usage of bloated image?
+	
+Bandit - tool to find security issues in python code - SAST tool
+bandit -r . (severity and confidence)
+
+Vulnerability management tool - DEFECTDOJO	
+A centralized platform for managing vulnerabilities of various security scanning tools effectively
+Such platforms provide helpful features, such as ability to merge findings, remember false positives and distill duplicates
+
+Container Image scanning - SCA Tool
+docker scout - set of software supply chain features integrated into Docker's user interfaces and CLI
+provides insights into the composition and security of the container images (checks all image layers)
+docker scout quickview - base image outdated or related recommendation
+docker scout cves - analyzes all the vulnerabilities that image has and gives CVEs
+docker scout recommendations 
+
+https://www.youtube.com/watch?v=1QazSvGIUuA
+https://www.youtube.com/watch?v=361bfIvXMBI
+https://www.youtube.com/@ApnaCollegeOfficial/videos
+
+
+CI pipeline
+1)Build and unit test - testing the all the functions instead of latest file changes
+Generate artifacts
+Unit test
+Tool: maven
+2)Code coverage
+unit test is the input of code coverage. so it should be done after the build and unit test stage
+How many lines of code you tested through unit test among the total lines of app code?
+Unused code
+Tool: Jacoco (specific to platform)
+3)SCA - it has no dependency with other steps. can be done as first stage with raw code
+Identifies vulnerabilities introduced by open-source or 3rd party libraries used in code
+Tool: OWASP Dependency-check (Snyk can also be used)
+4)SAST - no need to run the app. but we need to build the app
+Scan the app and identify vulnerabilities in proprietary code
+Insecure coding practices
+Tool: Sonarqube (open source & enterprise versions are available) SAST scanner (does scanning on your SAST result of your app)
+in SCA we are checking vulnerabilities for 3rd party libraries. here we are checking vulnerabilities for our own code. 
+is it vulnerable?
+is it hackable?
+does it have memory leak?
+coding standard practice is followed?
+5)Quality Gates
+Check if application meets the quality standards
+Tools: Sonarqube Quality Profile
+Sonarqube has two use cases:
+Sonarqube scanner - to perform SAST scanning
+Sonarqube dashboard - to perform quality gate checks by collecting all the code coverage, SCA & SAST results
+6)Build Image
+Tool: Dockerfile
+7)Scan Image
+Identifies vulnerabilities in image layers
+Tool: Trivy (Snyk can also be used)
+8)Smoke Test
+Verify if the image is built properly
+Check if Image/App is ready for testing
+Tool: Docker Container
+
+Why can't we use the same pipeline for both CI & CD?
+CI pipelines need to have access to the k8s cluster which is not secure
+pipeline can't redeploy.. you can't just deploy without build
+pipeline needs to deploy across qa/staging/prod environment
+
+maven phases run in order
+validate → compile → test → package → verify → install → deploy
+mvn clean - deletes the target/ directory. removes old compiled files and artifacts
+mvn compile - compiles java source code from src/main/java to check if source code compiles successfully generate .class files in target directory
+mvn test - compiles test classes and runs unit test from src/test/java
+mvn package - compiles code, runs test and packages the app to jar or war target. o/p target/myapp.jar
+mvn install - installs the artifact into local Maven repository so other local projects can use this artifact
+mvn deploy - build the project and upload the artifact to remote repository (nexus / artifactory)
+mvn validate - checks project structure and validate pom.xml is correct
+mvn verify - runs integration tests and performs quality checks (tests how multiple components work together using real dependencies)
+
+mvn clean        # remove old build
+mvn compile      # compile source
+mvn test         # run tests
+mvn package      # create jar
+mvn install      # save jar locally
+mvn deploy       # publish jar
+
+mvn clean package - removes the old build and creates a new build in the target directory.
+mvn clean install - removes the old build and creates a new build and upload to local maven repository
+
+arguments (-D properties)
+-DskipTests → compiles tests, doesn’t run them
+-Dmaven.test.skip=true → skips compiling tests also
+
+mvn profiles - profiles allow environment‑specific builds.
+example pom.xml profile
+<profiles>
+  <profile>
+    <id>dev</id>
+  </profile>
+  <profile>
+    <id>prod</id>
+  </profile>
+</profiles>
+mvn clean install -Pdev
+mvn clean install -Pprod
+mvn clean install -Pdev,qa - activate multiple profiles
+
+-o	Offline mode -	mvn -o clean install
+-s	Custom settings.xml	- mvn -s settings.xml clean install - changes how Maven connects to repositories (URLs, credentials, proxies, mirrors), not how the project is built
+-Dmaven.repo.local	Custom local repo	- mvn clean install -Dmaven.repo.local=/tmp/m2
+
+plugin specific arguments also there
+mvn test -Dtest=MyTest
+mvn verify -Dit.test=ITTest
+mvn clean compile -Dmaven.compiler.source=17 -Dmaven.compiler.target=17
+
+mvn clean install -U (Update Snapshots) - Forces Maven to re‑download SNAPSHOT dependencies from remote repositories. Ignores cached versions in local repo
+
+Maven
+│
+├── pom.xml       → What to build
+│   ├── dependencies
+│   ├── plugins
+│   └── profiles (project logic)
+│
+├── settings.xml  → How / from where
+│   ├── repos
+│   ├── credentials
+│   ├── proxies
+│   └── mirrors
+│
+├── ~/.m2         → Cached dependencies
+│
+└── Lifecycle
+    ├── compile
+    ├── test
+    ├── package - target/order-service-1.0-SNAPSHOT.jar
+    ├── install - ~/.m2/com/company/order-service/1.0-SNAPSHOT
+    └── deploy
+
+Maven reads pom.xml, resolves dependencies, executes a standard build lifecycle, and uses settings.xml for environment‑specific configuration such as repositories and credentials.
+
+You type: mvn clean install
+
+Maven:
+1. Reads settings.xml  → where/how
+2. Reads pom.xml       → what
+3. Downloads deps
+4. Runs lifecycle
+5. Creates artifact
+6. Installs locally
+
+Plugins help Maven build my code, dependencies help my code run
+
+
+sqa_f5696dbfa80906ea8476e4c7905fbe3795416e4b
+
+Other SAST tools:
+veracode
+coverity
+
+components of sonarqube
+sonarqube server
+rules - instructions to follow while writing the code, standard, best practices
+db - analysis report
+web interface 
+
+sonarscanner
+serive or agent that runs where the code exist. you need to install the scanner and run the scan. it will be published to sonarqube
+
+sonarscanner is installed on the vm with properties file. it collects the required info from source code. it pulls the applicable rules (based on the programming language) defined in the sonarserver and generates the report. that scanner stores the reports back in the sonarqube server db 
+
+to install sonarqube server on vm
+install openjdk
+download community edition from sonarqube.org and move to vm and unzip
+we have sonar.properties file 
+./sonar.sh start
+./sonar.sh status
+it won't work with root user. that you can check in the logs folder logs. because its using elasticsearch.. es can't use root user. 
+access it on 9000 port. default username/password - admin/admin
+
+in the sonarqube console, add project manually or from scm source code management repo
+when adding manually, it will ask for project key. give some name, generate token. with this token we can authenticate with our sonarqube
+
+to use this maven
+mvn sonar:sonar \
+	-Dsonar.projectKey=maven-project \
+	-Dsonar.host.url=http://vmip:9000 \
+	-Dsonar.login="token"
+
+sonarqube has
+projects
+issues
+rules - predefined rules as per the programming language
+quality profiles - collection of rules. there are default quality profiles also per language. we can create custom profiles also and add rules based on our needs. 
+type of rules in the quality profiles
+bug
+vulnerability
+code smell
+security hotspot
+we can activate rules from this list one by one or in bulk and set severity as major/minor/critical...
+we can set custom profile has default profile also so from next time scan based on the rules defined in the custom profile
+quality gates - conditions to check code is good or not. here also we have default and can create custom quality gate and add condition and set it as default. 
+administration - for security(users), projects, system, marketplace, etc..
+
+so to test this, in a vm download java project and maven (no need to install sonarscanner separately its part of maven)
+run the maven commands
+mvn sonar:sonar \
+	-Dsonar.projectKey=maven-project \
+	-Dsonar.host.url=http://vmip:9000 \
+	-Dsonar.login="token"
+it will generate the report and publish it to sonar server.
+you can see while running which quality profile it has taken
+
+here elasticsearch (search server) is used in sonar to search data from database from web. 
+
+even in jenkins we used to install sonarscanner plugin through manage plugins. mvn sonar:sonar is the maven goal for sonarscanner. 
+
+sonarqube server is self hosted with community, developer and enterprise editions
+whereas sonarqube cloud is a SaaS offering designed to integrate with ci/cd pipelines has free, team, enterprise editions
+here is sonarqube cloud
+one sonarqube cloud project can corresponds one to one with azure devops project 
+one sonarqube cloud org can corresponds one to one with azure devops org. 
+
+
+azure devops tasks
+- task: SonarQubePrepare@4 - values for sonarscanner where is the sonarqube server,what is the project key, name and file exclusions are passed here to prepare scan
+- task: Maven@3 - mvn sonar:sonar does the scan and publish it to sonarqube server along with jacoco cc report
+- task: SonarQubeAnalyze@4 - Completes SonarQube analysis and finalizes background processing.
+- task: SonarQubePublish@4 (has timeouts) - Fetches Quality Gate result (PASS/FAIL) from SonarQube.
+- task: sonar-buildbreaker@8 - Explicitly fails the build if SonarQube Quality Gate fails.
+
+
+======================
+securing containers
+1. by default docker containers are running as root user. always update the docker with user using below commands
+RUN groupadd -r appuser & useradd -r -g appuser appuser
+USER appuser
+check inside the container using id
+
+2. image size - keep it small - multi stage build
+source image & app packages(dependencies)
+
+3. use distroless images - to avoid having unwanted packages from base image
+
+4. .dockerignore - its considered during COPY . . step inside the dockerfile during image build
+
+5. docker run
+docker run \
+  --read-only \  -- process inside the container becomes read only
+  --tmpfs /tmp \ -- temp file system if you want to write
+  --cap-drop ALL \ -- container doesn't gain any additional power
+  --security-opt no-new-privileges \ -- container doesn't gain any additional power
+  --pids-limit 100 \ -- processes limit 100 to avoid ddos attack
+  --memory 256m \ 
+  --cpus 0.5 \
+  -p 3000:3000 \
+  secure-app
+
+======================
+
+============================
+
+1. publicartifact output available in the artifact section and can be used by other pipelines also?
+2. workspaces in jenkins and default working directory in azure devops are same?
+3. install stores the artifact into maven repo means it moves the target folder and .jar file to repo like local repo directory or remote repo?
+4. for local repo no need to mention the repo directory or creds in the pom.xml but for remote repo do we need to mention the repo location and creds?
+5. also the maven repos can be used to download the artifacts other than pushing the build artifact to?
+6. if 5th point is yes, my source code is in my repo only.. what its downloading from maven repo? 
+7. settings.xml file is the file contains remote repo and creds? it should be provided for both downloading and pushing the artifacts?
+Let’s go through your questions one by one, all in the context of Maven and CI/CD:
+
+1. Public artifact output available in the artifact section and usable by other pipelines?
+Yes. In Azure DevOps, when you publish build artifacts (PublishBuildArtifacts@1), they appear in the pipeline’s Artifacts tab.
+
+Other pipelines (release pipelines or downstream builds) can consume these artifacts.
+
+This is separate from Maven repositories — it’s Azure DevOps’ own artifact handling.
+
+2. Workspaces in Jenkins vs Default Working Directory in Azure DevOps
+Jenkins workspace → the job’s working directory on the agent, where source code is checked out and builds run.
+
+Azure DevOps $(System.DefaultWorkingDirectory) → the pipeline’s working folder on the agent, where sources are downloaded and tasks execute.
+
+Conceptually they’re the same idea: a per-job working directory on the agent. Just different naming.
+
+3. install moves artifacts to repo?
+Yes. mvn install takes the JAR/WAR from target/ and copies it into your local Maven repository (~/.m2/repository).
+
+This makes the artifact available for other Maven projects on the same machine.
+
+It does not push to a remote repo — that requires mvn deploy.
+
+4. Local repo vs remote repo configuration
+Local repo → Maven knows the default location (~/.m2/repository), no need to configure in pom.xml.
+
+Remote repo → You must specify the repository URL (and credentials if private) in pom.xml or settings.xml.
+Example:
+
+xml
+<distributionManagement>
+  <repository>
+    <id>company-repo</id>
+    <url>https://repo.mycompany.com/maven2</url>
+  </repository>
+</distributionManagement>
+5. Maven repos can be used to download artifacts too?
+Absolutely. Maven repositories are both sources and destinations:
+
+Download dependencies (e.g., Spring, JUnit).
+
+Upload your own artifacts (via deploy).
+
+6. If source code is in my repo, what is Maven downloading?
+Maven downloads dependencies your project needs, as declared in pom.xml.
+
+Example: If your code uses JUnit, Maven fetches junit-4.13.2.jar from Central or a remote repo.
+
+Your source code stays in Git; Maven only pulls external libraries.
+
+7. settings.xml contains remote repo and creds?
+Yes. settings.xml is the file Maven uses for:
+
+Remote repository URLs.
+
+Credentials (username/password, tokens).
+
+Mirrors, proxies, profiles.
+
+It’s needed for both downloading dependencies (from private repos) and pushing artifacts (to remote repos).
+
+Without it, Maven can only access the public Central repo.
+
+✅ Summary:
+
+Azure artifacts = pipeline outputs, shareable across pipelines.
+
+Jenkins workspace ≈ Azure DevOps working directory.
+
+install → local repo; deploy → remote repo.
+
+Local repo needs no config; remote repo requires URL + creds.
+
+Maven repos are for both download (dependencies) and upload (your artifacts).
+
+settings.xml is the key file for remote repo access and authentication.
+
+Would you like me to sketch a flow diagram showing how Maven moves artifacts between target/, local repo, remote repo, and CI/CD artifacts (like Azure DevOps)? That would tie all these points together visually.
+
+If source code is in my repo, what is Maven downloading
+here junit is the java/maven dependency used for source code testing? means its publicly available right? if i just mention in the pom.xml it can be downloaded? why should i download it from private repo? also central repo means apache maven repo? don't we need to provide creds for that?
+Excellent set of questions — let’s unpack them clearly:
+
+🔹 If source code is in my repo, what is Maven downloading?
+Maven isn’t downloading your source code — that already lives in Git.
+What Maven downloads are the dependencies your project needs, as declared in pom.xml.
+
+Example:
+
+xml
+<dependency>
+  <groupId>junit</groupId>
+  <artifactId>junit</artifactId>
+  <version>4.13.2</version>
+  <scope>test</scope>
+</dependency>
+This tells Maven: “I need JUnit 4.13.2 for testing.”
+
+Maven will fetch that JAR from a repository (local cache first, then Central or any configured remote repo).
+
+🔹 JUnit as a dependency
+Yes, JUnit is a Java testing framework.
+
+It’s publicly available in the Maven Central Repository.
+
+If you just declare it in pom.xml, Maven automatically downloads it the first time and caches it in your local repo (~/.m2/repository).
+
+🔹 Why download from a private repo?
+Central repo is public and contains most open-source libraries.
+
+But companies often host private repositories (Nexus, Artifactory, Azure Artifacts) for:
+
+Proprietary/internal libraries not published to Central.
+
+Third-party libraries with licensing restrictions.
+
+Security reasons (control over which artifacts are allowed).
+
+Faster builds (local mirror of Central).
+
+So you’d use a private repo when you need artifacts that aren’t in Central or when your organization requires it.
+
+🔹 Central Repository
+Yes, “Central” means the Apache Maven Central Repository (repo.maven.apache.org).
+
+It’s the default public repo Maven uses if you don’t configure anything else.
+
+No credentials needed — it’s open access for downloading.
+
+Credentials are only required for private repos (to download or deploy).
+
+✅ Summary:
+
+Maven downloads dependencies (like JUnit) from repositories, not your source code.
+
+JUnit is public, so just declaring it in pom.xml is enough — Maven fetches it from Central.
+
+Private repos are used for internal/proprietary artifacts or organizational policies.
+
+Central repo = Apache Maven’s public repo, no creds needed for downloads.
+
+================
