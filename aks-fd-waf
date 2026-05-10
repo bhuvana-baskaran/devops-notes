@@ -1,0 +1,116 @@
+azure app g/w
+frontend ips - public ip / private ip
+backend pools
+listeners - http or https & type basic or multi site
+rules - listener, backend pools
+
+listener - multi site - 2 backend pools
+redirection - 2 backend pools
+rewrite rules - across rules
+autoscaling for app g/w - min & max, az's choose across multiple az's
+
+ssl traffic termination at app g/w - user to app g/w encrypted -- app g/w to backend unencrypted
+fast performance
+visibility headers / url
+ssl management at app g/w rather than on app side
+
+WAF - enable from app gateway portal - create waf policy and attach to app g/w
+health probes
+alerts
+log analytic workspaces
+
+cookie-based affinity
+
+app g/w skus v1 vs v2
+
+azure front door - global service - https traffic
+app g/w - regional - https traffic
+traffic manager - global service - non-https traffic
+azure LB - regional - non-https traffic
+
+
+
+azure front door
+frontend/domains
+backend pools - health probes
+routing rules
+
+frontend
+custom domains.. tls cert.. azure provides tls support for non root or apex domains
+WAF
+
+routing rules
+frontend to backend
+http to https redirection
+url redirections
+
+backend host types
+app service
+storage
+app g/w
+public ip
+traffic manager
+customer host
+
+priority & weight - decides active/active or active/passive 
+1 to 5 & 1 to 1000
+
+backends could be in the same or different region
+health probes for backend
+
+
+waf policy
+1)basic
+policy for front door / app g/w / azure CDN
+subs
+rg
+sku 
+policy name
+state enable / disable
+policy modes - prevention / detection (only logs the requests)
+
+2)manage rules
+default rule set
+additional rule set - bot protection rule set
+list of rules - select enable/disable
+
+3)policy settings
+
+4)custom rules
+rulename, priority, rule type, state
+
+5)association
+front door / app g/w
+
+in waf section of FD, associate waf policy to front door
+
+routing rules - caching enable / disable
+dynamic compression - enable / disable
+default cache duration
+
+invalidate caching - purge all or specific path
+
+rules engine configuration - rule - condition & action
+based on the incoming request, alter the requests, redirections
+if the request is coming from mobile device, redirect to mob app backends
+
+
+client request -> nearst edge location -> frontdoor -> tLS connection -> evaluate waf rules
+-> match rules and backends -> evaluate rule engine rules -> return cache content -> if not cached, selects backend and forward the request to backend based on health status, session affinity
+
+routing methods
+latency
+priority
+weight
+
+standard/premium frontdoor
+endpoint manager
+domains
+rule set
+security - WAF policy
+optimization - recommendations
+orgin groups - origins - private link can be created to backends
+
+WAF
+exclusions for specific conditions
+same policy associated with multiple front doors
