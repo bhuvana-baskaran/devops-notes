@@ -1,0 +1,41 @@
+app service plan
+os
+region
+instance_size
+scale count
+sku / pricing tier
+
+deployment slots / staging slots -- swap
+
+app service pricing tiers
+shared - free
+dedicated
+isolated
+
+app service sku features
+cpu, memory, storage
+autoscaling
+backups
+staging slots
+custom domains
+networking
+
+
+high availability
+vertical up / down - horizontal in / out
+
+create webapp
+name - with .azurewebistes.net domain 
+publish - code / docker container / static web app
+runtime - language
+OS - Linux / windows
+region
+pricing plan - dev / prod / isolated
+zone redundancy
+
+deploy app service using
+visual studio code publish
+app service deployment center - repo
+azure devops ci/cd release
+
+app service - stop / restart / delete / get/reset publish profile
